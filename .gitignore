@@ -1,0 +1,8 @@
+build/
+
+.vscode/
+.DS_Store
+
+api/creds.json
+firmware/include/credentials.h
+website/creds.json
