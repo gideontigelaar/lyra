@@ -2,3 +2,85 @@
 API that receives data from the firmware and stores it in the MariaDB database.
 
 Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
+
+## Requirements
+- PHP 8.4 with `pdo_mysql`
+- MariaDB 11.8
+- Apache 2.4 with the `lyra` API project, see "Add API project" in `SERVER.md`
+
+## Database
+1. Create the database and its user, in `sudo mariadb`:
+   ```sql
+   CREATE DATABASE lyra CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+   CREATE USER 'lyra_admin'@'localhost' IDENTIFIED BY 'db_password';
+   GRANT ALL PRIVILEGES ON lyra.* TO 'lyra_admin'@'localhost';
+   ```
+
+2. Create the tables, in `sudo mariadb lyra`:
+   ```sql
+   CREATE TABLE devices (
+       device_id    SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+       name         VARCHAR(50)       NOT NULL,
+       api_key_hash CHAR(64)          NOT NULL,
+       is_active    TINYINT(1)        NOT NULL DEFAULT 1,
+       last_seen_at TIMESTAMP         NULL DEFAULT NULL,
+       created_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (device_id),
+       UNIQUE KEY (name),
+       UNIQUE KEY (api_key_hash)
+   );
+
+   CREATE TABLE sensors (
+       sensor_id  SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+       device_id  SMALLINT UNSIGNED NOT NULL,
+       address    VARCHAR(32)       NOT NULL,
+       name       VARCHAR(50)       NOT NULL,
+       created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (sensor_id),
+       UNIQUE KEY (address),
+       UNIQUE KEY (name),
+       FOREIGN KEY (device_id) REFERENCES devices (device_id)
+   );
+
+   CREATE TABLE metrics (
+       metric_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
+       name      VARCHAR(30)      NOT NULL,
+       unit      VARCHAR(10)      NOT NULL,
+       PRIMARY KEY (metric_id),
+       UNIQUE KEY (name)
+   );
+
+   CREATE TABLE readings (
+       sensor_id   SMALLINT UNSIGNED NOT NULL,
+       metric_id   TINYINT UNSIGNED  NOT NULL,
+       value       DOUBLE            NOT NULL,
+       measured_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (sensor_id, metric_id, measured_at),
+       FOREIGN KEY (sensor_id) REFERENCES sensors (sensor_id),
+       FOREIGN KEY (metric_id) REFERENCES metrics (metric_id)
+   );
+
+   INSERT INTO metrics (name, unit) VALUES
+       ('temperature', '°C'),
+       ('humidity', '%'),
+       ('battery', '%'),
+       ('voltage', 'V');
+   ```
+
+## Devices and sensors
+Each device has its own API key. Create one:
+```bash
+openssl rand -hex 32
+```
+
+Register the device, in `sudo mariadb lyra`:
+```sql
+INSERT INTO devices (name, api_key_hash) VALUES ('DEVICE_NAME', SHA2('API_KEY', 256));
+```
+
+Only its hash is stored, so keep the key somewhere safe.
+
+Register each sensor the device forwards:
+```sql
+INSERT INTO sensors (device_id, address, name) VALUES ((SELECT device_id FROM devices WHERE name = 'DEVICE_NAME'), 'SENSOR_ADDRESS', 'SENSOR_NAME');
+```
