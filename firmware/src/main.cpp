@@ -1,16 +1,12 @@
 #include <Arduino.h>
-#include "config.h"
-#include "logger.h"
+#include "sensor_gateway.h"
+
+SensorGateway gateway;
 
 void setup() {
-    Serial.begin(115200);
-
-    while (!Serial && millis() < Config::SERIAL_WAIT_MS) {
-        delay(10);
-    }
-
-    LOG_INFO("=== Lyra Sensor Gateway ===");
+    gateway.init();
 }
 
 void loop() {
+    gateway.poll();
 }
