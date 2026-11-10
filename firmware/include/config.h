@@ -8,5 +8,14 @@ namespace Config {
         const uint16_t WINDOW_MS   = 80;
     }
 
+    namespace Network {
+        const char* const API_URL = "https://api.gideontigelaar.com/lyra";
+
+        const uint32_t WIFI_RETRY_MS     = 15000;
+        const uint32_t RETRY_MS          = 10000;
+        const uint32_t SENSOR_REFRESH_MS = 300000;
+        const uint16_t TIMEOUT_MS        = 10000;
+    }
+
     const uint32_t SERIAL_WAIT_MS = 3000;
 }

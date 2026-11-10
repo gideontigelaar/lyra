@@ -2,6 +2,8 @@
 #include "config.h"
 #include "logger.h"
 #include <Arduino.h>
+#include <ArduinoJson.h>
+#include <strings.h>
 
 void SensorGateway::init() {
     Serial.begin(115200);
@@ -12,6 +14,7 @@ void SensorGateway::init() {
 
     LOG_INFO("=== Lyra Sensor Gateway ===");
 
+    _api.init();
     _scanner.init();
 }
 
@@ -19,14 +22,109 @@ void SensorGateway::poll() {
     SensorReading reading;
 
     while (_scanner.next(reading, 100)) {
-        logReading(reading);
+        Sensor* sensor = findSensor(reading.address);
+
+        if (sensor == nullptr || !isNewPacket(*sensor, reading.measurement)) {
+            continue;
+        }
+
+        snprintf(reading.address, sizeof(reading.address), "%s", sensor->address.c_str());
+        logReading(reading, sensor->name.c_str());
+        sendReading(reading);
+    }
+
+    _api.poll(millis());
+    refreshSensors();
+}
+
+SensorGateway::Sensor* SensorGateway::findSensor(const char* address) {
+    for (Sensor& sensor : _sensors) {
+        if (strcasecmp(sensor.address.c_str(), address) == 0) {
+            return &sensor;
+        }
+    }
+
+    return nullptr;
+}
+
+bool SensorGateway::isNewPacket(Sensor& sensor, const Measurement& m) {
+    if (!m.has_packet_id) {
+        return true;
+    }
+
+    int kind = (m.has_temperature || m.has_humidity) ? 0 : 1;
+
+    if (sensor.last_packet_id[kind] == m.packet_id) {
+        return false;
+    }
+
+    sensor.last_packet_id[kind] = m.packet_id;
+    return true;
+}
+
+void SensorGateway::refreshSensors() {
+    if (!_api.isConnected() || millis() - _last_refresh_ms < _refresh_interval_ms) {
+        return;
+    }
+
+    String response;
+    ApiClient::Result result = _api.get("/device/sensors", response);
+    _last_refresh_ms = millis();
+
+    _refresh_interval_ms = result == ApiClient::Result::FAILED ? Config::Network::RETRY_MS : Config::Network::SENSOR_REFRESH_MS;
+
+    if (result != ApiClient::Result::OK) {
+        return;
+    }
+
+    JsonDocument doc;
+    DeserializationError error = deserializeJson(doc, response);
+
+    if (error) {
+        LOG_ERROR("Gateway: Invalid sensor list (%s)", error.c_str());
+        return;
+    }
+
+    std::vector<Sensor> sensors;
+
+    for (JsonObjectConst item : doc["sensors"].as<JsonArrayConst>()) {
+        Sensor sensor;
+        sensor.address = item["address"] | "";
+        sensor.name = item["name"] | "";
+
+        if (const Sensor* known = findSensor(sensor.address.c_str())) {
+            sensor.last_packet_id[0] = known->last_packet_id[0];
+            sensor.last_packet_id[1] = known->last_packet_id[1];
+        }
+
+        sensors.push_back(sensor);
+    }
+
+    if (!_sensors_loaded || sensors.size() != _sensors.size()) {
+        LOG_INFO("Gateway: Forwarding %u sensor(s)", (unsigned)sensors.size());
+    }
+
+    _sensors = std::move(sensors);
+    _sensors_loaded = true;
+}
+
+void SensorGateway::sendReading(const SensorReading& reading) {
+    if (!_api.isConnected()) {
+        LOG_WARN("Gateway: No Wi-Fi, reading dropped");
+        return;
+    }
+
+    String payload = buildPayload(reading);
+
+    if (_api.post("/readings", payload.c_str()) == ApiClient::Result::OK) {
+        LOG_INFO("Network: Sent reading");
     }
 }
 
-void SensorGateway::logReading(const SensorReading& reading) {
+void SensorGateway::logReading(const SensorReading& reading, const char* name) {
     const Measurement& m = reading.measurement;
     char line[160];
-    int length = snprintf(line, sizeof(line), "%s #%u (%d dBm):", reading.address, m.packet_id, reading.rssi);
+    int length = snprintf(line, sizeof(line), "%s #%u (%d dBm):", name, m.packet_id, reading.rssi);
     const char* separator = " ";
 
     if (m.has_temperature) {
@@ -49,4 +147,33 @@ void SensorGateway::logReading(const SensorReading& reading) {
     }
 
     LOG_INFO("Scanner: %s", line);
+}
+
+String SensorGateway::buildPayload(const SensorReading& reading) {
+    const Measurement& m = reading.measurement;
+    JsonDocument doc;
+
+    doc["sensor"] = reading.address;
+
+    JsonObject values = doc["readings"].to<JsonObject>();
+
+    if (m.has_temperature) {
+        values["temperature"] = m.temperature;
+    }
+
+    if (m.has_humidity) {
+        values["humidity"] = m.humidity;
+    }
+
+    if (m.has_battery) {
+        values["battery"] = m.battery;
+    }
+
+    if (m.has_voltage) {
+        values["voltage"] = m.voltage;
+    }
+
+    String payload;
+    serializeJson(doc, payload);
+    return payload;
 }

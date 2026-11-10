@@ -91,12 +91,14 @@ Register the device, in `sudo mariadb lyra`:
 INSERT INTO devices (name, api_key_hash) VALUES ('DEVICE_NAME', SHA2('API_KEY', 256));
 ```
 
-Only its hash is stored, so keep the key somewhere safe.
+The same key goes in `firmware/include/credentials.h`. Only its hash is stored, so keep the key somewhere safe.
 
 Register each sensor the device forwards:
 ```sql
 INSERT INTO sensors (device_id, address, name) VALUES ((SELECT device_id FROM devices WHERE name = 'DEVICE_NAME'), 'SENSOR_ADDRESS', 'SENSOR_NAME');
 ```
+
+The device reloads its sensors every 5 minutes, so adding one needs no firmware change.
 
 ## Deploying
 Run from the root of the repository:
