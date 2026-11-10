@@ -67,6 +67,19 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        ('voltage', 'V');
    ```
 
+## Credentials
+Copy the template to the server, run from the root of the repository:
+```bash
+scp api/creds.json.template debian-server:/var/www/api.gideontigelaar.com/lyra/creds.json
+```
+
+Then on the server, set the database password and permissions:
+```bash
+nano /var/www/api.gideontigelaar.com/lyra/creds.json
+sudo chown gideon:lyra /var/www/api.gideontigelaar.com/lyra/creds.json
+sudo chmod 640 /var/www/api.gideontigelaar.com/lyra/creds.json
+```
+
 ## Devices and sensors
 Each device has its own API key. Create one:
 ```bash
@@ -84,3 +97,27 @@ Register each sensor the device forwards:
 ```sql
 INSERT INTO sensors (device_id, address, name) VALUES ((SELECT device_id FROM devices WHERE name = 'DEVICE_NAME'), 'SENSOR_ADDRESS', 'SENSOR_NAME');
 ```
+
+## Deploying
+Run from the root of the repository:
+```bash
+rsync -av --delete --exclude README.md --exclude creds.json.template --exclude creds.json --exclude .DS_Store api/ debian-server:/var/www/api.gideontigelaar.com/lyra/
+```
+
+Add `--dry-run` to see what would change first. Files deleted locally are also deleted on the server, except `creds.json`.
+
+## Endpoints
+- `GET /lyra/`: health check
+- `POST /lyra/readings`: store the values of one measurement
+
+Device endpoints need the header `Authorization: Bearer API_KEY`.
+
+Body of `POST /lyra/readings`:
+```json
+{"sensor": "A4:C1:38:2A:EF:13", "readings": {"temperature": 21.37, "humidity": 45.1, "battery": 87}}
+```
+
+## Notes
+- A device can only send readings for its own sensors, and only for metrics in the `metrics` table.
+- New kinds of values only need a row in `metrics`, no schema change.
+- All timestamps are in UTC.
