@@ -20,8 +20,10 @@ void SensorGateway::init() {
 
 void SensorGateway::poll() {
     SensorReading reading;
+    uint32_t wait_ms = 100;
 
-    while (_scanner.next(reading, 100)) {
+    while (_scanner.next(reading, wait_ms)) {
+        wait_ms = 0;
         Sensor* sensor = findSensor(reading.address);
 
         if (sensor == nullptr || !isNewPacket(*sensor, reading.measurement)) {
@@ -30,11 +32,12 @@ void SensorGateway::poll() {
 
         snprintf(reading.address, sizeof(reading.address), "%s", sensor->address.c_str());
         logReading(reading, sensor->name.c_str());
-        sendReading(reading);
+        addPending(reading);
     }
 
     _api.poll(millis());
     refreshSensors();
+    sendPending();
 }
 
 SensorGateway::Sensor* SensorGateway::findSensor(const char* address) {
@@ -108,16 +111,42 @@ void SensorGateway::refreshSensors() {
     _sensors_loaded = true;
 }
 
-void SensorGateway::sendReading(const SensorReading& reading) {
-    if (!_api.isConnected()) {
-        LOG_WARN("Gateway: No Wi-Fi, reading dropped");
+void SensorGateway::addPending(const SensorReading& reading) {
+    if (_pending.size() >= Config::Network::MAX_PENDING) {
+        LOG_WARN("Gateway: Queue full, dropping oldest reading");
+        _pending.pop_front();
+    }
+
+    _pending.push_back(reading);
+}
+
+void SensorGateway::sendPending() {
+    if (_pending.empty() || !_api.isConnected()) {
         return;
     }
 
-    String payload = buildPayload(reading);
+    if (_send_failed && millis() - _last_failed_send_ms < Config::Network::RETRY_MS) {
+        return;
+    }
 
-    if (_api.post("/readings", payload.c_str()) == ApiClient::Result::OK) {
-        LOG_INFO("Network: Sent reading");
+    String payload = buildPayload(_pending.front(), millis());
+
+    switch (_api.post("/readings", payload.c_str())) {
+        case ApiClient::Result::OK:
+            _pending.pop_front();
+            _send_failed = false;
+            LOG_INFO("Network: Sent reading (%u pending)", (unsigned)_pending.size());
+            break;
+
+        case ApiClient::Result::REJECTED:
+            _pending.pop_front();
+            _send_failed = false;
+            break;
+
+        case ApiClient::Result::FAILED:
+            _send_failed = true;
+            _last_failed_send_ms = millis();
+            break;
     }
 }
 
@@ -149,11 +178,12 @@ void SensorGateway::logReading(const SensorReading& reading, const char* name) {
     LOG_INFO("Scanner: %s", line);
 }
 
-String SensorGateway::buildPayload(const SensorReading& reading) {
+String SensorGateway::buildPayload(const SensorReading& reading, uint32_t now_ms) {
     const Measurement& m = reading.measurement;
     JsonDocument doc;
 
     doc["sensor"] = reading.address;
+    doc["age"] = (now_ms - reading.received_ms) / 1000;
 
     JsonObject values = doc["readings"].to<JsonObject>();
 

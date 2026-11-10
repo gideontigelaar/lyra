@@ -8,6 +8,7 @@ set_exception_handler(function (Throwable $e): void {
 });
 
 const MAX_BODY_BYTES = 65536;
+const MAX_AGE_SECONDS = 86400;
 
 function respond(int $status, array $body): never
 {
@@ -104,9 +105,14 @@ function store_readings(): never
 
     $address = $data['sensor'] ?? null;
     $readings = $data['readings'] ?? null;
+    $age = $data['age'] ?? 0;
 
     if (!is_string($address) || !is_array($readings) || $readings === [] || array_is_list($readings)) {
         respond(400, ['error' => 'expected sensor and readings']);
+    }
+
+    if (!is_int($age) || $age < 0 || $age > MAX_AGE_SECONDS) {
+        respond(400, ['error' => 'age must be between 0 and ' . MAX_AGE_SECONDS . ' seconds']);
     }
 
     $stmt = $db->prepare('SELECT sensor_id FROM sensors WHERE address = ? AND device_id = ?');
@@ -130,15 +136,15 @@ function store_readings(): never
     }
 
     $insert = $db->prepare(
-        'INSERT INTO readings (sensor_id, metric_id, value)
-         VALUES (?, ?, ?)
+        'INSERT INTO readings (sensor_id, metric_id, value, measured_at)
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP - INTERVAL ? SECOND)
          ON DUPLICATE KEY UPDATE value = VALUE(value)'
     );
 
     $db->beginTransaction();
 
     foreach ($readings as $metric => $value) {
-        $insert->execute([$sensor_id, $metrics[$metric], $value]);
+        $insert->execute([$sensor_id, $metrics[$metric], $value, $age]);
     }
 
     $db->commit();

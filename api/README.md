@@ -117,10 +117,11 @@ Device endpoints need the header `Authorization: Bearer API_KEY`.
 
 Body of `POST /lyra/readings`:
 ```json
-{"sensor": "A4:C1:38:2A:EF:13", "readings": {"temperature": 21.37, "humidity": 45.1, "battery": 87}}
+{"sensor": "A4:C1:38:2A:EF:13", "age": 0, "readings": {"temperature": 21.37, "humidity": 45.1, "battery": 87}}
 ```
 
 ## Notes
+- `age` is how many seconds ago the device received the measurement, so readings sent late still get the right `measured_at`.
 - A device can only send readings for its own sensors, and only for metrics in the `metrics` table.
 - New kinds of values only need a row in `metrics`, no schema change.
 - All timestamps are in UTC.

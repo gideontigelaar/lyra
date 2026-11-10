@@ -15,6 +15,7 @@ namespace Config {
         const uint32_t RETRY_MS          = 10000;
         const uint32_t SENSOR_REFRESH_MS = 300000;
         const uint16_t TIMEOUT_MS        = 10000;
+        const size_t   MAX_PENDING       = 500;
     }
 
     const uint32_t SERIAL_WAIT_MS = 3000;
