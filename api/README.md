@@ -108,6 +108,7 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 
 ## Endpoints
 - `GET /lyra/`: health check
+- `GET /lyra/device/sensors`: the device's sensors, so it knows which ones to forward
 - `POST /lyra/readings`: store the values of one measurement
 
 Device endpoints need the header `Authorization: Bearer API_KEY`.

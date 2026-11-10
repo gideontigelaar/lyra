@@ -85,6 +85,17 @@ function health_check(): never
     ]);
 }
 
+function list_device_sensors(): never
+{
+    $db = get_db();
+    $device_id = authenticate_device($db);
+
+    $stmt = $db->prepare('SELECT address, name FROM sensors WHERE device_id = ? ORDER BY sensor_id');
+    $stmt->execute([$device_id]);
+
+    respond(200, ['sensors' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+}
+
 function store_readings(): never
 {
     $db = get_db();
@@ -137,6 +148,7 @@ function store_readings(): never
 
 $routes = [
     '/' => ['GET' => 'health_check'],
+    '/device/sensors' => ['GET' => 'list_device_sensors'],
     '/readings' => ['POST' => 'store_readings'],
 ];
 
