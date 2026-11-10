@@ -18,5 +18,10 @@ namespace Config {
         const size_t   MAX_PENDING       = 500;
     }
 
+    namespace Report {
+        const uint32_t CLIMATE_INTERVAL_MS = 900000;
+        const uint32_t VOLTAGE_INTERVAL_MS = 3600000;
+    }
+
     const uint32_t SERIAL_WAIT_MS = 3000;
 }

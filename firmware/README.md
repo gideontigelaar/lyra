@@ -33,6 +33,7 @@ pio device monitor
 ## Notes
 - The ESP32-C6 only uses 2.4 GHz Wi-Fi.
 - Sensors are loaded from the API once Wi-Fi is connected, then every 5 minutes. Readings from other sensors are ignored.
-- Up to 500 readings, about 2 hours for one sensor, are kept while Wi-Fi or the API is down. After that the oldest are dropped.
+- Temperature, humidity and battery are sent every 15 minutes, voltage every hour.
+- Up to 500 readings, about 4 days for one sensor, are kept while Wi-Fi or the API is down. After that the oldest are dropped.
 - Uses the `huge_app` partition layout: 3 MB for the firmware, no over-the-air updates.
 - If flashing fails, hold the BOOT button while plugging in the board.

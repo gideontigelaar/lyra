@@ -26,7 +26,7 @@ void SensorGateway::poll() {
         wait_ms = 0;
         Sensor* sensor = findSensor(reading.address);
 
-        if (sensor == nullptr || !isNewPacket(*sensor, reading.measurement)) {
+        if (sensor == nullptr || !isDue(*sensor, reading)) {
             continue;
         }
 
@@ -50,18 +50,18 @@ SensorGateway::Sensor* SensorGateway::findSensor(const char* address) {
     return nullptr;
 }
 
-bool SensorGateway::isNewPacket(Sensor& sensor, const Measurement& m) {
-    if (!m.has_packet_id) {
-        return true;
-    }
+bool SensorGateway::isDue(Sensor& sensor, const SensorReading& reading) {
+    const Measurement& m = reading.measurement;
+    bool climate = m.has_temperature || m.has_humidity;
+    int kind = climate ? 0 : 1;
+    uint32_t interval = climate ? Config::Report::CLIMATE_INTERVAL_MS : Config::Report::VOLTAGE_INTERVAL_MS;
 
-    int kind = (m.has_temperature || m.has_humidity) ? 0 : 1;
-
-    if (sensor.last_packet_id[kind] == m.packet_id) {
+    if (sensor.reported[kind] && reading.received_ms - sensor.last_report_ms[kind] < interval) {
         return false;
     }
 
-    sensor.last_packet_id[kind] = m.packet_id;
+    sensor.reported[kind] = true;
+    sensor.last_report_ms[kind] = reading.received_ms;
     return true;
 }
 
@@ -91,14 +91,12 @@ void SensorGateway::refreshSensors() {
     std::vector<Sensor> sensors;
 
     for (JsonObjectConst item : doc["sensors"].as<JsonArrayConst>()) {
-        Sensor sensor;
-        sensor.address = item["address"] | "";
-        sensor.name = item["name"] | "";
+        const char* address = item["address"] | "";
+        const Sensor* known = findSensor(address);
 
-        if (const Sensor* known = findSensor(sensor.address.c_str())) {
-            sensor.last_packet_id[0] = known->last_packet_id[0];
-            sensor.last_packet_id[1] = known->last_packet_id[1];
-        }
+        Sensor sensor = known ? *known : Sensor();
+        sensor.address = address;
+        sensor.name = item["name"] | "";
 
         sensors.push_back(sensor);
     }

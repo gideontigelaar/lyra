@@ -13,9 +13,10 @@ public:
 
 private:
     struct Sensor {
-        String address;
-        String name;
-        int    last_packet_id[2] = {-1, -1};
+        String   address;
+        String   name;
+        bool     reported[2]       = {false, false};
+        uint32_t last_report_ms[2] = {0, 0};
     };
 
     BleScanner _scanner;
@@ -32,7 +33,7 @@ private:
     uint32_t _last_failed_send_ms = 0;
 
     Sensor* findSensor(const char* address);
-    bool    isNewPacket(Sensor& sensor, const Measurement& measurement);
+    bool    isDue(Sensor& sensor, const SensorReading& reading);
     void    refreshSensors();
     void    addPending(const SensorReading& reading);
     void    sendPending();

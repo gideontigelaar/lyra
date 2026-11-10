@@ -121,7 +121,7 @@ Body of `POST /lyra/readings`:
 ```
 
 ## Notes
-- `age` is how many seconds ago the device received the measurement, so readings sent late still get the right `measured_at`.
+- `age` is how many seconds ago the device received the measurement, up to 7 days, so readings sent late still get the right `measured_at`.
 - A device can only send readings for its own sensors, and only for metrics in the `metrics` table.
 - New kinds of values only need a row in `metrics`, no schema change.
 - All timestamps are in UTC.

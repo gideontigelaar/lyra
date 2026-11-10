@@ -8,7 +8,7 @@ set_exception_handler(function (Throwable $e): void {
 });
 
 const MAX_BODY_BYTES = 65536;
-const MAX_AGE_SECONDS = 86400;
+const MAX_AGE_SECONDS = 604800;
 
 function respond(int $status, array $body): never
 {
