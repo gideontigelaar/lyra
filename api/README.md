@@ -216,6 +216,8 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `POST /lyra/passkeys/options`: a challenge to register a passkey with
 - `POST /lyra/passkeys`: register a passkey
 - `DELETE /lyra/passkeys/{id}`: remove a passkey
+- `GET /lyra/readings?sensor=ID&metric=NAME&from=TIME&to=TIME&tz=ZONE&bucket=BUCKET`: one value of one sensor over time
+- `DELETE /lyra/readings`: delete readings in time ranges
 
 Device endpoints need the header `Authorization: Bearer API_KEY`. The other endpoints use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
 
@@ -229,6 +231,16 @@ Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
 {"adverts": [{"address": "a4:c1:38:2a:ef:13", "data": "0201060e16d2fc4000120157025a0803bf13", "rssi": -61, "age": 0}]}
 ```
 
+Response of `GET /lyra/readings?sensor=1&metric=temperature&from=2026-11-04T23:00:00Z&to=2026-11-11T23:00:00Z&tz=Europe/Amsterdam&bucket=day`:
+```json
+{"unit": "°C", "bucket": "day", "readings": [{"time": "2026-11-04T23:00:00Z", "avg": 21.42, "min": 20.9, "max": 22.1}]}
+```
+
+Body of `DELETE /lyra/readings`:
+```json
+{"sensor": 1, "metric": "temperature", "ranges": [{"from": "2026-11-07T23:00:00Z", "to": "2026-11-08T23:00:00Z"}]}
+```
+
 ## Notes
 - Every response carries the security headers of `send_security_headers()` in `lib/http.php`.
 - Each file in `modules/` defines its handlers and returns its routes. New modules are added to `MODULES` in `index.php`, shared helpers live in `lib/`.
@@ -236,6 +248,7 @@ Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
 - `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
 - A device only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
 - A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
+- `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, an IANA time zone that defaults to UTC.
 - Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`.
 - Sessions last 30 days. Session tokens, setup codes and challenges are only stored as SHA-256 hashes.
 - Removing a passkey ends its sessions. The last passkey can't be removed.
