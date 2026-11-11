@@ -13,7 +13,7 @@ function get_db(): PDO
             "mysql:host=localhost;dbname={$creds['database']};charset=utf8mb4",
             $creds['username'],
             $creds['password'],
-            [PDO::ATTR_EMULATE_PREPARES => false],
+            [PDO::ATTR_EMULATE_PREPARES => false, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC],
         );
 
         $db->exec("SET time_zone = '+00:00'");

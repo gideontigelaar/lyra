@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+const MAX_ADVERTS = 100;
 const MAX_AGE_SECONDS = 604800;
 
 function authenticate_device(PDO $db): int
@@ -32,68 +33,66 @@ function list_device_sensors(): never
     $db = get_db();
     $device_id = authenticate_device($db);
 
-    $stmt = $db->prepare('SELECT address, name FROM sensors WHERE device_id = ? ORDER BY sensor_id');
+    $stmt = $db->prepare(
+        'SELECT s.address, MIN(IF(sm.is_active, sm.report_interval, NULL)) AS relay
+         FROM sensors s
+         LEFT JOIN sensor_metrics sm USING (sensor_id)
+         WHERE s.device_id = ?
+         GROUP BY s.sensor_id
+         ORDER BY s.sensor_id'
+    );
     $stmt->execute([$device_id]);
+    $sensors = [];
 
-    respond(200, ['sensors' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
+    foreach ($stmt as $row) {
+        $sensors[] = ['address' => $row['address'], 'interval' => $row['relay'] ?? RELAY_SECONDS];
+    }
+
+    respond(200, ['sensors' => $sensors]);
 }
 
-function store_readings(): never
+function store_adverts(): never
 {
     $db = get_db();
     $device_id = authenticate_device($db);
-    $data = read_json();
+    $adverts = read_json()['adverts'] ?? null;
 
-    $address = $data['sensor'] ?? null;
-    $readings = $data['readings'] ?? null;
-    $age = $data['age'] ?? 0;
-
-    if (!is_string($address) || !is_array($readings) || $readings === [] || array_is_list($readings)) {
-        respond(400, ['error' => 'expected sensor and readings']);
+    if (!is_array($adverts) || !array_is_list($adverts) || $adverts === [] || count($adverts) > MAX_ADVERTS) {
+        respond(400, ['error' => 'expected 1 to ' . MAX_ADVERTS . ' adverts']);
     }
 
-    if (!is_int($age) || $age < 0 || $age > MAX_AGE_SECONDS) {
-        respond(400, ['error' => 'age must be between 0 and ' . MAX_AGE_SECONDS . ' seconds']);
-    }
+    foreach ($adverts as $advert) {
+        $valid = is_array($advert)
+            && is_string($advert['address'] ?? null) && preg_match(MAC_PATTERN, strtoupper($advert['address']))
+            && is_string($advert['data'] ?? null) && preg_match('/^(?:[0-9A-Fa-f]{2}){1,255}$/', $advert['data'])
+            && is_int($advert['age'] ?? null) && $advert['age'] >= 0 && $advert['age'] <= MAX_AGE_SECONDS;
 
-    $stmt = $db->prepare('SELECT sensor_id FROM sensors WHERE address = ? AND device_id = ?');
-    $stmt->execute([$address, $device_id]);
-    $sensor_id = $stmt->fetchColumn();
-
-    if ($sensor_id === false) {
-        respond(400, ['error' => "unknown sensor: $address"]);
-    }
-
-    $metrics = $db->query('SELECT name, metric_id FROM metrics')->fetchAll(PDO::FETCH_KEY_PAIR);
-
-    foreach ($readings as $metric => $value) {
-        if (!isset($metrics[$metric])) {
-            respond(400, ['error' => "unknown metric: $metric"]);
-        }
-
-        if (!(is_int($value) || is_float($value)) || !is_finite($value)) {
-            respond(400, ['error' => "$metric must be a number"]);
+        if (!$valid) {
+            respond(400, ['error' => 'each advert needs an address, hex data and an age in seconds']);
         }
     }
 
-    $insert = $db->prepare(
-        'INSERT INTO readings (sensor_id, metric_id, value, measured_at)
-         VALUES (?, ?, ?, CURRENT_TIMESTAMP - INTERVAL ? SECOND)
-         ON DUPLICATE KEY UPDATE value = VALUE(value)'
-    );
+    $stmt = $db->prepare('SELECT sensor_id, address, decoder FROM sensors WHERE device_id = ?');
+    $stmt->execute([$device_id]);
+    $sensors = array_column($stmt->fetchAll(), null, 'address');
+    $stored = 0;
 
     $db->beginTransaction();
 
-    foreach ($readings as $metric => $value) {
-        $insert->execute([$sensor_id, $metrics[$metric], $value, $age]);
+    foreach ($adverts as $advert) {
+        $sensor = $sensors[strtoupper($advert['address'])] ?? null;
+
+        if ($sensor !== null) {
+            $stored += ingest_advert($db, $sensor, hex2bin($advert['data']), time() - $advert['age']);
+        }
     }
 
     $db->commit();
 
-    respond(201, ['status' => 'ok', 'inserted' => count($readings)]);
+    respond(200, ['stored' => $stored]);
 }
 
 return [
     '/device/sensors' => ['GET' => 'list_device_sensors'],
-    '/readings' => ['POST' => 'store_readings'],
+    '/device/adverts' => ['POST' => 'store_adverts'],
 ];

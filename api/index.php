@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/lib/http.php';
 require __DIR__ . '/lib/db.php';
+require __DIR__ . '/lib/pipeline.php';
 
 set_exception_handler(function (Throwable $e): void {
     error_log((string) $e);

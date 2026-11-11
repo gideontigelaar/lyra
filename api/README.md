@@ -1,5 +1,5 @@
 # Lyra API
-API that receives data from the firmware and stores it in the MariaDB database.
+API that decodes the sensor broadcasts the firmware relays and stores them in the MariaDB database.
 
 Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
 
@@ -35,6 +35,7 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        device_id  SMALLINT UNSIGNED NOT NULL,
        address    VARCHAR(32)       NOT NULL,
        name       VARCHAR(50)       NOT NULL,
+       decoder    VARCHAR(30)       NOT NULL,
        created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (sensor_id),
        UNIQUE KEY (address),
@@ -43,11 +44,29 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
    );
 
    CREATE TABLE metrics (
-       metric_id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
-       name      VARCHAR(30)      NOT NULL,
-       unit      VARCHAR(10)      NOT NULL,
+       metric_id        TINYINT UNSIGNED   NOT NULL AUTO_INCREMENT,
+       name             VARCHAR(30)        NOT NULL,
+       unit             VARCHAR(10)        NOT NULL,
+       default_interval MEDIUMINT UNSIGNED NOT NULL DEFAULT 900,
        PRIMARY KEY (metric_id),
        UNIQUE KEY (name)
+   );
+
+   CREATE TABLE sensor_metrics (
+       sensor_id       SMALLINT UNSIGNED  NOT NULL,
+       metric_id       TINYINT UNSIGNED   NOT NULL,
+       report_interval MEDIUMINT UNSIGNED NOT NULL,
+       is_active       TINYINT(1)         NOT NULL DEFAULT 1,
+       PRIMARY KEY (sensor_id, metric_id),
+       FOREIGN KEY (sensor_id) REFERENCES sensors (sensor_id) ON DELETE CASCADE,
+       FOREIGN KEY (metric_id) REFERENCES metrics (metric_id)
+   );
+
+   CREATE TABLE sensor_sinks (
+       sensor_id SMALLINT UNSIGNED NOT NULL,
+       sink      VARCHAR(30)       NOT NULL,
+       PRIMARY KEY (sensor_id, sink),
+       FOREIGN KEY (sensor_id) REFERENCES sensors (sensor_id) ON DELETE CASCADE
    );
 
    CREATE TABLE readings (
@@ -60,11 +79,15 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        FOREIGN KEY (metric_id) REFERENCES metrics (metric_id)
    );
 
-   INSERT INTO metrics (name, unit) VALUES
-       ('temperature', '°C'),
-       ('humidity', '%'),
-       ('battery', '%'),
-       ('voltage', 'V');
+   INSERT INTO metrics (name, unit, default_interval) VALUES
+       ('temperature', '°C', 900),
+       ('humidity', '%', 900),
+       ('battery', '%', 3600),
+       ('voltage', 'V', 3600),
+       ('pressure', 'hPa', 900),
+       ('illuminance', 'lx', 900),
+       ('dew_point', '°C', 900),
+       ('co2', 'ppm', 900);
    ```
 
 ## Credentials
@@ -93,9 +116,15 @@ INSERT INTO devices (name, api_key_hash) VALUES ('DEVICE_NAME', SHA2('API_KEY', 
 
 The same key goes in `firmware/include/credentials.h`. Only its hash is stored, so keep the key somewhere safe.
 
-Register each sensor the device forwards:
+Register each sensor the device relays, with its type and where its values go. The address is in capitals, like `A4:C1:38:2A:EF:13`:
 ```sql
-INSERT INTO sensors (device_id, address, name) VALUES ((SELECT device_id FROM devices WHERE name = 'DEVICE_NAME'), 'SENSOR_ADDRESS', 'SENSOR_NAME');
+INSERT INTO sensors (device_id, address, name, decoder) VALUES ((SELECT device_id FROM devices WHERE name = 'DEVICE_NAME'), 'SENSOR_ADDRESS', 'SENSOR_NAME', 'bthome');
+INSERT INTO sensor_sinks (sensor_id, sink) SELECT sensor_id, 'lyra' FROM sensors WHERE name = 'SENSOR_NAME';
+```
+
+Its values appear on their own once the device hears it, each recorded at its `default_interval` in `metrics`. To record one at another interval, in seconds:
+```sql
+UPDATE sensor_metrics SET report_interval = SECONDS WHERE sensor_id = (SELECT sensor_id FROM sensors WHERE name = 'SENSOR_NAME') AND metric_id = (SELECT metric_id FROM metrics WHERE name = 'METRIC_NAME');
 ```
 
 The device reloads its sensors every 5 minutes, so adding one needs no firmware change.
@@ -110,19 +139,25 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 
 ## Endpoints
 - `GET /lyra/`: health check
-- `GET /lyra/device/sensors`: the device's sensors, so it knows which ones to forward
-- `POST /lyra/readings`: store the values of one measurement
+- `GET /lyra/device/sensors`: the device's sensors and how often to relay each
+- `POST /lyra/device/adverts`: relay sensor broadcasts
 
 Device endpoints need the header `Authorization: Bearer API_KEY`.
 
-Body of `POST /lyra/readings`:
+Response of `GET /lyra/device/sensors`:
 ```json
-{"sensor": "A4:C1:38:2A:EF:13", "age": 0, "readings": {"temperature": 21.37, "humidity": 45.1, "battery": 87}}
+{"sensors": [{"address": "A4:C1:38:2A:EF:13", "interval": 900}]}
+```
+
+Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
+```json
+{"adverts": [{"address": "a4:c1:38:2a:ef:13", "data": "0201060e16d2fc4000120157025a0803bf13", "rssi": -61, "age": 0}]}
 ```
 
 ## Notes
 - Each file in `modules/` defines its handlers and returns its routes. New modules are added to `MODULES` in `index.php`, shared helpers live in `lib/`.
-- `age` is how many seconds ago the device received the measurement, up to 7 days, so readings sent late still get the right `measured_at`.
-- A device can only send readings for its own sensors, and only for metrics in the `metrics` table.
-- New kinds of values only need a row in `metrics`, no schema change.
+- Broadcasts are decoded here, so a new sensor type is a file in `decoders/` plus its name in `DECODERS` in `lib/pipeline.php`. A new destination is a file in `sinks/` plus its name in `SINKS`. Neither needs a firmware update.
+- `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
+- A device only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
+- A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
 - All timestamps are in UTC.
