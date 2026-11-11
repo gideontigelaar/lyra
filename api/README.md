@@ -81,11 +81,12 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
    );
 
    CREATE TABLE users (
-       user_id    SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
-       handle     BINARY(32)        NOT NULL,
-       name       VARCHAR(50)       NOT NULL,
-       dashboard  JSON              NULL DEFAULT NULL,
-       created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       user_id          SMALLINT UNSIGNED             NOT NULL AUTO_INCREMENT,
+       handle           BINARY(32)                    NOT NULL,
+       name             VARCHAR(50)                   NOT NULL,
+       dashboard        JSON                          NULL DEFAULT NULL,
+       temperature_unit ENUM('celsius', 'fahrenheit') NOT NULL DEFAULT 'celsius',
+       created_at       TIMESTAMP                     NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (user_id),
        UNIQUE KEY (handle),
        UNIQUE KEY (name)
@@ -232,6 +233,8 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `GET /lyra/dashboard`: the user's summary cards, `null` until customised
 - `PUT /lyra/dashboard`: save the summary cards
 - `DELETE /lyra/dashboard`: go back to the default summary
+- `GET /lyra/settings`: the user's settings
+- `PATCH /lyra/settings`: change `temperature_unit` to `celsius` or `fahrenheit`
 
 Device endpoints need the header `Authorization: Bearer API_KEY`. The other endpoints use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
 
@@ -264,6 +267,7 @@ Body of `DELETE /lyra/readings`:
 - A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, an IANA time zone that defaults to UTC.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
+- Temperatures are stored in °C. `temperature_unit` only changes how the website shows them.
 - Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`.
 - Sessions last 30 days. Session tokens, setup codes, device keys and challenges are only stored as SHA-256 hashes.
 - Removing a passkey ends its sessions. The last passkey can't be removed.
