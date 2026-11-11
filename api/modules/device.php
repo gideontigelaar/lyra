@@ -4,6 +4,22 @@ declare(strict_types=1);
 
 const MAX_ADVERTS = 100;
 const MAX_AGE_SECONDS = 604800;
+const TELEMETRY_NUMBERS = [
+    'uptime' => [0, 4294967295],
+    'boots' => [1, 4294967295],
+    'rssi' => [-127, 0],
+    'wifi_reconnects' => [0, 4294967295],
+    'free_heap' => [0, 4294967295],
+    'min_free_heap' => [0, 4294967295],
+    'largest_block' => [0, 4294967295],
+    'temperature' => [-40, 125],
+    'pending' => [0, 65535],
+    'dropped' => [0, 4294967295],
+];
+const RESET_REASONS = [
+    'unknown', 'power_on', 'external', 'software', 'panic', 'interrupt_watchdog', 'task_watchdog', 'watchdog',
+    'deep_sleep', 'brownout', 'sdio', 'usb', 'jtag', 'efuse', 'power_glitch', 'cpu_lockup',
+];
 
 function authenticate_device(PDO $db): int
 {
@@ -92,7 +108,51 @@ function store_adverts(): never
     respond(200, ['stored' => $stored]);
 }
 
+function store_telemetry(): never
+{
+    $db = get_db();
+    $device_id = authenticate_device($db);
+    $data = read_json();
+    $telemetry = [];
+
+    foreach (TELEMETRY_NUMBERS as $field => [$min, $max]) {
+        if (!array_key_exists($field, $data)) {
+            continue;
+        }
+
+        $value = $data[$field];
+
+        if (!(is_int($value) || ($field === 'temperature' && is_float($value))) || $value < $min || $value > $max) {
+            respond(400, ['error' => "$field must be a number from $min to $max"]);
+        }
+
+        $telemetry[$field] = $field === 'temperature' ? round($value, 1) : $value;
+    }
+
+    if (array_key_exists('reset_reason', $data)) {
+        if (!in_array($data['reset_reason'], RESET_REASONS, true)) {
+            respond(400, ['error' => 'reset_reason must be one of: ' . implode(', ', RESET_REASONS)]);
+        }
+
+        $telemetry['reset_reason'] = $data['reset_reason'];
+    }
+
+    if (array_key_exists('build', $data)) {
+        if (!is_string($data['build']) || !preg_match('/^[\x20-\x7E]{1,40}$/', $data['build'])) {
+            respond(400, ['error' => 'build must be up to 40 printable characters']);
+        }
+
+        $telemetry['build'] = $data['build'];
+    }
+
+    $db->prepare('UPDATE devices SET telemetry = ?, telemetry_at = CURRENT_TIMESTAMP WHERE device_id = ?')
+        ->execute([json_encode($telemetry, JSON_UNESCAPED_SLASHES), $device_id]);
+
+    respond_empty();
+}
+
 return [
     '/device/sensors' => ['GET' => 'list_device_sensors'],
     '/device/adverts' => ['POST' => 'store_adverts'],
+    '/device/telemetry' => ['POST' => 'store_telemetry'],
 ];

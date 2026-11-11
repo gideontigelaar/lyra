@@ -30,12 +30,14 @@ function list_devices(): never
 
     $devices = [];
 
-    foreach ($db->query('SELECT device_id, name, is_active, last_seen_at FROM devices ORDER BY name') as $row) {
+    foreach ($db->query('SELECT device_id, name, is_active, last_seen_at, telemetry, telemetry_at FROM devices ORDER BY name') as $row) {
         $devices[] = [
             'id' => $row['device_id'],
             'name' => $row['name'],
             'active' => (bool) $row['is_active'],
             'last_seen_at' => iso_time($row['last_seen_at']),
+            'telemetry' => $row['telemetry'] === null ? null : json_decode($row['telemetry'], true, 4, JSON_THROW_ON_ERROR),
+            'telemetry_at' => iso_time($row['telemetry_at']),
             'sensors' => $sensors[$row['device_id']] ?? [],
         ];
     }

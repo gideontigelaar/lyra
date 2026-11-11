@@ -25,6 +25,8 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        api_key_hash CHAR(64)          NOT NULL,
        is_active    TINYINT(1)        NOT NULL DEFAULT 1,
        last_seen_at TIMESTAMP         NULL DEFAULT NULL,
+       telemetry    JSON              NULL DEFAULT NULL,
+       telemetry_at TIMESTAMP         NULL DEFAULT NULL,
        created_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (device_id),
        UNIQUE KEY (name),
@@ -211,6 +213,7 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `GET /lyra/`: health check
 - `GET /lyra/device/sensors`: the device's sensors and how often to relay each
 - `POST /lyra/device/adverts`: relay sensor broadcasts
+- `POST /lyra/device/telemetry`: the device's own health, for troubleshooting
 - `POST /lyra/auth/options`: a challenge to sign in with
 - `POST /lyra/auth/login`: sign in with a passkey
 - `POST /lyra/auth/logout`: sign out
@@ -222,7 +225,7 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `POST /lyra/sensors`: add a sensor
 - `PATCH /lyra/sensors/{id}`: change a sensor's name, device, values or sinks
 - `DELETE /lyra/sensors/{id}`: remove a sensor and all its readings
-- `GET /lyra/devices`: every device, when it was last seen and its sensors
+- `GET /lyra/devices`: every device, when it was last seen, its latest telemetry and its sensors
 - `POST /lyra/devices`: add a device, returns its key once
 - `PATCH /lyra/devices/{id}`: rename a device or turn it on or off
 - `POST /lyra/devices/{id}/key`: replace a device's key
@@ -248,6 +251,11 @@ Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
 {"adverts": [{"address": "a4:c1:38:2a:ef:13", "data": "0201060e16d2fc4000120157025a0803bf13", "rssi": -61, "age": 0}]}
 ```
 
+Body of `POST /lyra/device/telemetry`, every field optional:
+```json
+{"uptime": 86400, "boots": 12, "reset_reason": "power_on", "rssi": -61, "wifi_reconnects": 0, "free_heap": 182000, "min_free_heap": 151000, "largest_block": 110000, "temperature": 41.5, "pending": 0, "dropped": 0, "build": "Nov 12 2026 10:00:00"}
+```
+
 Response of `GET /lyra/readings?sensor=1&metric=temperature&from=2026-11-04T23:00:00Z&to=2026-11-11T23:00:00Z&tz=Europe/Amsterdam&bucket=day`:
 ```json
 {"unit": "°C", "bucket": "day", "readings": [{"time": "2026-11-04T23:00:00Z", "avg": 21.42, "min": 20.9, "max": 22.1}]}
@@ -264,6 +272,7 @@ Body of `DELETE /lyra/readings`:
 - Broadcasts are decoded here, so a new sensor type is a file in `decoders/` plus its name in `DECODERS` in `lib/pipeline.php`. A new destination is a file in `sinks/` plus its name in `SINKS`. Neither needs a firmware update.
 - `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
 - A device only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
+- Only the latest telemetry of a device is kept. Unknown telemetry fields are ignored, so newer firmware works with this API. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, `pending` and `dropped` count broadcasts waiting in or dropped from the device's queue.
 - A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, an IANA time zone that defaults to UTC.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
