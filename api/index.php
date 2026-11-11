@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+require __DIR__ . '/vendor/autoload.php';
 require __DIR__ . '/lib/http.php';
 require __DIR__ . '/lib/db.php';
+require __DIR__ . '/lib/auth.php';
+require __DIR__ . '/lib/webauthn.php';
 require __DIR__ . '/lib/pipeline.php';
 
 set_exception_handler(function (Throwable $e): void {
@@ -11,7 +14,9 @@ set_exception_handler(function (Throwable $e): void {
     respond(500, ['error' => 'internal server error']);
 });
 
-const MODULES = ['health', 'device'];
+allow_website();
+
+const MODULES = ['health', 'device', 'auth', 'passkeys'];
 
 $routes = [];
 
@@ -25,7 +30,23 @@ $base = dirname($_SERVER['SCRIPT_NAME']);
 $uri = explode('?', $_SERVER['REQUEST_URI'], 2)[0];
 $path = '/' . trim(substr($uri, strlen($base)), '/');
 
-$methods = $routes[$path] ?? respond(404, ['error' => 'not found']);
+foreach ($routes as $route => $methods) {
+    if (preg_match('#^' . preg_replace('#\\\\\{\w+\\\\\}#', '([^/]+)', preg_quote($route, '#')) . '$#', $path, $match)) {
+        break;
+    }
+}
+
+if ($match === []) {
+    respond(404, ['error' => 'not found']);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    header('Access-Control-Allow-Methods: ' . implode(', ', array_keys($methods)));
+    header('Access-Control-Allow-Headers: Content-Type');
+    header('Access-Control-Max-Age: 7200');
+    respond_empty();
+}
+
 $handler = $methods[$_SERVER['REQUEST_METHOD']] ?? null;
 
 if ($handler === null) {
@@ -33,4 +54,4 @@ if ($handler === null) {
     respond(405, ['error' => 'method not allowed']);
 }
 
-$handler();
+$handler(...array_slice($match, 1));

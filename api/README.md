@@ -1,11 +1,12 @@
 # Lyra API
-API that decodes the sensor broadcasts the firmware relays and stores them in the MariaDB database.
+API that decodes the sensor broadcasts the firmware relays, stores them in the MariaDB database and serves the website.
 
 Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
 
 ## Requirements
-- PHP 8.4 with `pdo_mysql`
+- PHP 8.4 with `pdo_mysql`, `openssl`, `sodium` and `mbstring`
 - MariaDB 11.8
+- Composer, on the computer you deploy from
 - Apache 2.4 with the `lyra` API project, see "Add API project" in `SERVER.md`
 
 ## Database
@@ -79,6 +80,54 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        FOREIGN KEY (metric_id) REFERENCES metrics (metric_id)
    );
 
+   CREATE TABLE users (
+       user_id    SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+       handle     BINARY(32)        NOT NULL,
+       name       VARCHAR(50)       NOT NULL,
+       created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (user_id),
+       UNIQUE KEY (handle),
+       UNIQUE KEY (name)
+   );
+
+   CREATE TABLE passkeys (
+       passkey_id    SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
+       user_id       SMALLINT UNSIGNED NOT NULL,
+       credential_id VARBINARY(1023)   NOT NULL,
+       name          VARCHAR(50)       NOT NULL,
+       record        JSON              NOT NULL,
+       last_used_at  TIMESTAMP         NULL DEFAULT NULL,
+       created_at    TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (passkey_id),
+       UNIQUE KEY (credential_id),
+       FOREIGN KEY (user_id) REFERENCES users (user_id)
+   );
+
+   CREATE TABLE sessions (
+       token_hash CHAR(64)          NOT NULL,
+       passkey_id SMALLINT UNSIGNED NOT NULL,
+       expires_at TIMESTAMP         NOT NULL,
+       created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (token_hash),
+       FOREIGN KEY (passkey_id) REFERENCES passkeys (passkey_id)
+   );
+
+   CREATE TABLE challenges (
+       challenge_hash CHAR(64)          NOT NULL,
+       user_id        SMALLINT UNSIGNED NULL DEFAULT NULL,
+       expires_at     TIMESTAMP         NOT NULL,
+       PRIMARY KEY (challenge_hash),
+       FOREIGN KEY (user_id) REFERENCES users (user_id)
+   );
+
+   CREATE TABLE setup_codes (
+       code_hash  CHAR(64)          NOT NULL,
+       user_id    SMALLINT UNSIGNED NOT NULL,
+       expires_at TIMESTAMP         NOT NULL,
+       PRIMARY KEY (code_hash),
+       FOREIGN KEY (user_id) REFERENCES users (user_id)
+   );
+
    INSERT INTO metrics (name, unit, default_interval) VALUES
        ('temperature', '°C', 900),
        ('humidity', '%', 900),
@@ -129,10 +178,29 @@ UPDATE sensor_metrics SET report_interval = SECONDS WHERE sensor_id = (SELECT se
 
 The device reloads its sensors every 5 minutes, so adding one needs no firmware change.
 
+## Users and passkeys
+Signing in to the website only works with passkeys. Create the owner, in `sudo mariadb lyra`:
+```sql
+INSERT INTO users (handle, name) VALUES (RANDOM_BYTES(32), 'USER_NAME');
+```
+
+The first passkey needs a one-time setup code. Create one:
+```bash
+openssl rand -hex 16
+```
+
+Store it for an hour, in `sudo mariadb lyra`:
+```sql
+INSERT INTO setup_codes (code_hash, user_id, expires_at) VALUES (SHA2('SETUP_CODE', 256), (SELECT user_id FROM users WHERE name = 'USER_NAME'), CURRENT_TIMESTAMP + INTERVAL 1 HOUR);
+```
+
+Then register the passkey with it on the website. More passkeys can be added while signed in, so a new setup code is only needed when every passkey is lost.
+
 ## Deploying
 Run from the root of the repository:
 ```bash
-rsync -av --delete --exclude README.md --exclude creds.json.template --exclude creds.json --exclude .DS_Store api/ debian-server:/var/www/api.gideontigelaar.com/lyra/
+composer install --working-dir=api --no-dev --classmap-authoritative
+rsync -av --delete --exclude README.md --exclude creds.json.template --exclude creds.json --exclude composer.json --exclude composer.lock --exclude .DS_Store api/ debian-server:/var/www/api.gideontigelaar.com/lyra/
 ```
 
 Add `--dry-run` to see what would change first. Files deleted locally are also deleted on the server, except `creds.json`.
@@ -141,8 +209,15 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `GET /lyra/`: health check
 - `GET /lyra/device/sensors`: the device's sensors and how often to relay each
 - `POST /lyra/device/adverts`: relay sensor broadcasts
+- `POST /lyra/auth/options`: a challenge to sign in with
+- `POST /lyra/auth/login`: sign in with a passkey
+- `POST /lyra/auth/logout`: sign out
+- `GET /lyra/passkeys`: the user's passkeys
+- `POST /lyra/passkeys/options`: a challenge to register a passkey with
+- `POST /lyra/passkeys`: register a passkey
+- `DELETE /lyra/passkeys/{id}`: remove a passkey
 
-Device endpoints need the header `Authorization: Bearer API_KEY`.
+Device endpoints need the header `Authorization: Bearer API_KEY`. The other endpoints use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
 
 Response of `GET /lyra/device/sensors`:
 ```json
@@ -160,4 +235,7 @@ Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
 - `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
 - A device only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
 - A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
+- Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`.
+- Sessions last 30 days. Session tokens, setup codes and challenges are only stored as SHA-256 hashes.
+- Removing a passkey ends its sessions. The last passkey can't be removed.
 - All timestamps are in UTC.
