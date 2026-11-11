@@ -6,6 +6,15 @@ const MAX_BODY_BYTES = 65536;
 const WEBSITE_ORIGIN = 'https://lyra.gideontigelaar.com';
 const NAME_LENGTH = 50;
 
+function send_security_headers(): void
+{
+    header("Content-Security-Policy: default-src 'none'; frame-ancestors 'none'");
+    header('Cross-Origin-Resource-Policy: same-site');
+    header('Referrer-Policy: no-referrer');
+    header('Strict-Transport-Security: max-age=31536000');
+    header('X-Content-Type-Options: nosniff');
+}
+
 function allow_website(): void
 {
     header('Access-Control-Allow-Origin: ' . WEBSITE_ORIGIN);

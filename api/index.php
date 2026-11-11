@@ -14,6 +14,7 @@ set_exception_handler(function (Throwable $e): void {
     respond(500, ['error' => 'internal server error']);
 });
 
+send_security_headers();
 allow_website();
 
 const MODULES = ['health', 'device', 'auth', 'passkeys'];

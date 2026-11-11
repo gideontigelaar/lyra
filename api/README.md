@@ -230,6 +230,7 @@ Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
 ```
 
 ## Notes
+- Every response carries the security headers of `send_security_headers()` in `lib/http.php`.
 - Each file in `modules/` defines its handlers and returns its routes. New modules are added to `MODULES` in `index.php`, shared helpers live in `lib/`.
 - Broadcasts are decoded here, so a new sensor type is a file in `decoders/` plus its name in `DECODERS` in `lib/pipeline.php`. A new destination is a file in `sinks/` plus its name in `SINKS`. Neither needs a firmware update.
 - `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
