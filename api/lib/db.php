@@ -21,3 +21,16 @@ function get_db(): PDO
 
     return $db;
 }
+
+function on_duplicate(callable $write, string $error): void
+{
+    try {
+        $write();
+    } catch (PDOException $e) {
+        if (($e->errorInfo[1] ?? null) !== 1062) {
+            throw $e;
+        }
+
+        respond(409, ['error' => $error]);
+    }
+}

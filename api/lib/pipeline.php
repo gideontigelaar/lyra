@@ -14,6 +14,11 @@ function plugin(string $kind, string $name): array
     return $loaded["$kind/$name"] ??= require dirname(__DIR__) . "/$kind/$name.php";
 }
 
+function plugin_list(string $kind, array $names): array
+{
+    return array_map(fn(string $name) => ['name' => $name, 'label' => plugin($kind, $name)['label']], $names);
+}
+
 function parse_advert(string $payload): array
 {
     $advert = ['service_data' => [], 'manufacturer_data' => []];

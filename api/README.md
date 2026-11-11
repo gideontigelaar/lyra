@@ -33,7 +33,7 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
 
    CREATE TABLE sensors (
        sensor_id  SMALLINT UNSIGNED NOT NULL AUTO_INCREMENT,
-       device_id  SMALLINT UNSIGNED NOT NULL,
+       device_id  SMALLINT UNSIGNED NULL DEFAULT NULL,
        address    VARCHAR(32)       NOT NULL,
        name       VARCHAR(50)       NOT NULL,
        decoder    VARCHAR(30)       NOT NULL,
@@ -41,7 +41,7 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        PRIMARY KEY (sensor_id),
        UNIQUE KEY (address),
        UNIQUE KEY (name),
-       FOREIGN KEY (device_id) REFERENCES devices (device_id)
+       FOREIGN KEY (device_id) REFERENCES devices (device_id) ON DELETE SET NULL
    );
 
    CREATE TABLE metrics (
@@ -76,7 +76,7 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        value       DOUBLE            NOT NULL,
        measured_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (sensor_id, metric_id, measured_at),
-       FOREIGN KEY (sensor_id) REFERENCES sensors (sensor_id),
+       FOREIGN KEY (sensor_id) REFERENCES sensors (sensor_id) ON DELETE CASCADE,
        FOREIGN KEY (metric_id) REFERENCES metrics (metric_id)
    );
 
@@ -216,6 +216,16 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `POST /lyra/passkeys/options`: a challenge to register a passkey with
 - `POST /lyra/passkeys`: register a passkey
 - `DELETE /lyra/passkeys/{id}`: remove a passkey
+- `GET /lyra/sensors`: every sensor with its values, latest readings and sinks
+- `POST /lyra/sensors`: add a sensor
+- `PATCH /lyra/sensors/{id}`: change a sensor's name, device, values or sinks
+- `DELETE /lyra/sensors/{id}`: remove a sensor and all its readings
+- `GET /lyra/devices`: every device, when it was last seen and its sensors
+- `POST /lyra/devices`: add a device, returns its key once
+- `PATCH /lyra/devices/{id}`: rename a device or turn it on or off
+- `POST /lyra/devices/{id}/key`: replace a device's key
+- `DELETE /lyra/devices/{id}`: remove a device, its sensors are kept
+- `GET /lyra/decoders`, `GET /lyra/sinks`: the sensor types and destinations there are
 - `GET /lyra/readings?sensor=ID&metric=NAME&from=TIME&to=TIME&tz=ZONE&bucket=BUCKET`: one value of one sensor over time
 - `DELETE /lyra/readings`: delete readings in time ranges
 
@@ -250,6 +260,6 @@ Body of `DELETE /lyra/readings`:
 - A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, an IANA time zone that defaults to UTC.
 - Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`.
-- Sessions last 30 days. Session tokens, setup codes and challenges are only stored as SHA-256 hashes.
+- Sessions last 30 days. Session tokens, setup codes, device keys and challenges are only stored as SHA-256 hashes.
 - Removing a passkey ends its sessions. The last passkey can't be removed.
 - All timestamps are in UTC.
