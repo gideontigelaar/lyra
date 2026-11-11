@@ -1,9 +1,10 @@
 #include "ble_scanner.h"
-#include "config.h"
 #include "logger.h"
+#include <cstdio>
+#include <cstring>
 
 void BleScanner::init() {
-    _queue = xQueueCreate(32, sizeof(SensorReading));
+    _queue = xQueueCreate(32, sizeof(Advert));
 
     NimBLEDevice::init("");
 
@@ -16,37 +17,69 @@ void BleScanner::init() {
     scan->setWindow(Config::Scan::WINDOW_MS);
     scan->start(0, false, true);
 
-    LOG_INFO("Scanner: Listening for BTHome sensors");
+    LOG_INFO("Scanner: Listening");
 }
 
-bool BleScanner::next(SensorReading& reading, uint32_t wait_ms) {
-    return xQueueReceive(_queue, &reading, pdMS_TO_TICKS(wait_ms)) == pdTRUE;
+void BleScanner::watch(const std::vector<String>& addresses) {
+    uint8_t parsed[Config::MAX_SENSORS][6];
+    size_t count = 0;
+
+    for (const String& address : addresses) {
+        unsigned int bytes[6];
+
+        if (count == Config::MAX_SENSORS) {
+            LOG_WARN("Scanner: Watching only the first %u sensors", (unsigned)Config::MAX_SENSORS);
+            break;
+        }
+
+        if (sscanf(address.c_str(), "%2x:%2x:%2x:%2x:%2x:%2x", &bytes[5], &bytes[4], &bytes[3], &bytes[2], &bytes[1], &bytes[0]) != 6) {
+            LOG_WARN("Scanner: Invalid address %s", address.c_str());
+            continue;
+        }
+
+        for (size_t i = 0; i < 6; i++) {
+            parsed[count][i] = bytes[i];
+        }
+
+        count++;
+    }
+
+    portENTER_CRITICAL(&_lock);
+    memcpy(_addresses, parsed, count * sizeof(parsed[0]));
+    _count = count;
+    portEXIT_CRITICAL(&_lock);
+}
+
+bool BleScanner::next(Advert& advert, uint32_t wait_ms) {
+    return xQueueReceive(_queue, &advert, pdMS_TO_TICKS(wait_ms)) == pdTRUE;
 }
 
 void BleScanner::onResult(const NimBLEAdvertisedDevice* device) {
-    std::string data = device->getServiceData(NimBLEUUID(BTHome::SERVICE_UUID));
+    const uint8_t* address = device->getAddress().getVal();
+    bool watched = false;
 
-    if (data.empty()) {
+    portENTER_CRITICAL(&_lock);
+
+    for (size_t i = 0; i < _count && !watched; i++) {
+        watched = memcmp(_addresses[i], address, 6) == 0;
+    }
+
+    portEXIT_CRITICAL(&_lock);
+
+    const std::vector<uint8_t>& payload = device->getPayload();
+
+    if (!watched || payload.empty() || payload.size() > sizeof(Advert::data)) {
         return;
     }
 
-    SensorReading reading = {};
+    Advert advert = {};
+    snprintf(advert.address, sizeof(advert.address), "%s", device->getAddress().toString().c_str());
+    memcpy(advert.data, payload.data(), payload.size());
+    advert.length = payload.size();
+    advert.rssi = device->getRSSI();
+    advert.received_ms = millis();
 
-    if (!BTHome::decode(reinterpret_cast<const uint8_t*>(data.data()), data.size(), reading.measurement)) {
-        return;
-    }
-
-    const Measurement& m = reading.measurement;
-
-    if (!m.has_temperature && !m.has_humidity && !m.has_battery && !m.has_voltage) {
-        return;
-    }
-
-    snprintf(reading.address, sizeof(reading.address), "%s", device->getAddress().toString().c_str());
-    reading.rssi = device->getRSSI();
-    reading.received_ms = millis();
-
-    xQueueSend(_queue, &reading, 0);
+    xQueueSend(_queue, &advert, 0);
 }
 
 void BleScanner::onScanEnd(const NimBLEScanResults&, int) {

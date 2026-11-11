@@ -1,12 +1,12 @@
 #include <Arduino.h>
-#include "sensor_gateway.h"
+#include "relay.h"
 
-SensorGateway gateway;
+Relay relay;
 
 void setup() {
-    gateway.init();
+    relay.init();
 }
 
 void loop() {
-    gateway.poll();
+    relay.poll();
 }

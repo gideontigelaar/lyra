@@ -16,12 +16,9 @@ namespace Config {
         const uint32_t SENSOR_REFRESH_MS = 300000;
         const uint16_t TIMEOUT_MS        = 10000;
         const size_t   MAX_PENDING       = 500;
+        const size_t   MAX_BATCH         = 20;
     }
 
-    namespace Report {
-        const uint32_t CLIMATE_INTERVAL_MS = 900000;
-        const uint32_t VOLTAGE_INTERVAL_MS = 3600000;
-    }
-
+    const size_t   MAX_SENSORS    = 32;
     const uint32_t SERIAL_WAIT_MS = 3000;
 }

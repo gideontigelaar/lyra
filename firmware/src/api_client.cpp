@@ -45,16 +45,16 @@ bool ApiClient::isConnected() const {
     return WiFi.status() == WL_CONNECTED;
 }
 
-ApiClient::Result ApiClient::get(const char* path, String& response) {
+SendResult ApiClient::get(const char* path, String& response) {
     return request(path, nullptr, response);
 }
 
-ApiClient::Result ApiClient::post(const char* path, const char* json) {
+SendResult ApiClient::post(const char* path, const char* json) {
     String response;
     return request(path, json, response);
 }
 
-ApiClient::Result ApiClient::request(const char* path, const char* json, String& response) {
+SendResult ApiClient::request(const char* path, const char* json, String& response) {
     HTTPClient http;
     http.setConnectTimeout(Config::Network::TIMEOUT_MS);
     http.setTimeout(Config::Network::TIMEOUT_MS);
@@ -62,7 +62,7 @@ ApiClient::Result ApiClient::request(const char* path, const char* json, String&
 
     if (!http.begin(_client, String(Config::Network::API_URL) + path)) {
         LOG_ERROR("Network: Invalid API_URL");
-        return Result::REJECTED;
+        return SendResult::REJECTED;
     }
 
     http.addHeader("Authorization", "Bearer " API_KEY);
@@ -79,19 +79,19 @@ ApiClient::Result ApiClient::request(const char* path, const char* json, String&
     http.end();
 
     if (status >= 200 && status < 300) {
-        return Result::OK;
+        return SendResult::OK;
     }
 
     if (status < 0) {
         LOG_WARN("Network: Request failed (%s)", HTTPClient::errorToString(status).c_str());
-        return Result::FAILED;
+        return SendResult::FAILED;
     }
 
     if (status >= 500 || status == 429) {
         LOG_WARN("Network: Server error %d", status);
-        return Result::FAILED;
+        return SendResult::FAILED;
     }
 
     LOG_ERROR("Network: Rejected with %d: %s", status, response.c_str());
-    return Result::REJECTED;
+    return SendResult::REJECTED;
 }
