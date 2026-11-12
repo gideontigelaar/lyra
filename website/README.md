@@ -1,42 +1,37 @@
 # Lyra website
-Website that shows the collected data.
-
-Runs on [lyra.gideontigelaar.com](https://lyra.gideontigelaar.com).
-
-## Requirements
-- Node.js 22.23.4 or newer (26 LTS recommended)
+The dashboard on [lyra.gideontigelaar.com](https://lyra.gideontigelaar.com), built with Astro, React and Tailwind.
 
 ## Developing
-Run in `website/`:
+Needs Node.js 22.23.4 or newer. In `website/`:
 ```bash
 npm install
 npm run dev
 ```
 
-The dev server uses the demo's sample data from `src/lib/demo.ts`, so it works without signing in. The same data is behind "Try the demo" on the sign-in page.
+The dev server runs on the sample data in `src/lib/demo.ts`, so there's no need to sign in. It's the same data as "Try the demo" on the sign-in page.
 
-Check the types:
-```bash
-npm run check
-```
+`npm run check` checks the types.
 
 ## Deploying
-Build, then upload `dist/`. Run in `website/`:
+In `website/`:
 ```bash
 npm run build
 rsync -av --delete dist/ debian-server:/var/www/lyra.gideontigelaar.com/
 ```
 
-Add `--dry-run` to see what would change first. Files deleted locally are also deleted on the server.
+Add `--dry-run` first to see what would change. Files deleted locally are deleted on the server too.
 
-## Notes
-- The site is static. `public/.htaccess` sets its caching and security headers, and Astro adds a Content-Security-Policy to every page.
-- Signing in only works with passkeys, on the live site. The first passkey is created with a setup code, see the [API README](../api/README.md). More can be added in Settings. The last passkey can't be removed, and removing the one you signed in with signs you out.
-- Summary shows the cards you pin: a whole sensor, one of its values, or the batteries of all sensors. Large cards add a graph of the last 24 hours, which can be turned off per card. By default it has a card per value when there's one sensor, and a card per sensor when there are more. Above the cards it only lists what needs attention: an offline source, a sensor that stopped reporting, or a low battery. Edit works like Apple Home: drag to reorder, the corner handle resizes, the minus removes, + adds, and Undo and Redo step through changes. Saving the default layout clears the saved one, so new sensors show up by themselves again.
-- Tapping a card opens its sensor. A sensor's page shows its latest values, with a chart of the chosen one for the hour, day, week, month, 6 months or year, in local time. The line is the average and the band runs from the lowest to the highest reading. Each point is an hour for a day or week, and a day for longer periods. All Recorded Data lists days or single readings, which can be deleted.
-- Sensors and Sources are managed on the site. Adding a source shows its key once, for `firmware/include/credentials.h`.
-- A source's page has a folded Diagnostics section with the health it reports every 5 minutes, for troubleshooting.
-- `src/lib/metrics.ts` sets each value's label, icon, decimals and colour, other values get defaults. Battery shows on a sensor's page and the Batteries card, and elsewhere only when it's low. Battery voltage only shows under a sensor's Details.
-- Temperatures are shown in °C or °F, set per account in Settings.
-- The wordmark is the word Lyra in Bricolage Grotesque, converted to outlines, so no font is loaded. Text uses the system font.
+## Good to know
+- It's a static site. `public/.htaccess` sets caching and security headers, and Astro adds a Content-Security-Policy to every page. The inline scripts live in `src/scripts/inline.mjs` so their hashes make it into that policy.
+- The app is one React page that switches views without reloading, see `src/components/App.tsx`. Addresses read like `/sensors/1/temperature/data/`. Everything under `/sensors/` and `/sources/` is served by that section's page, through `FallbackResource` in `public/sensors/.htaccess` and `public/sources/.htaccess` on the server and a small plugin in `astro.config.mjs` in development.
+- Signing in uses passkeys and only works on the live site. The first passkey needs a setup code, see the [API README](../api/README.md). The sign-in page only shows that option while a code is waiting.
+- The browser remembers that it's signed in, so signed-out visitors land on the sign-in page without the dashboard flashing first.
+- Settings has the theme, °C or °F, the time zone, passkeys and sessions. Units and time zone are saved per account, and the time zone can follow the device.
+- Summary shows the cards you add: a sensor with all its values, one value, the average of a value over up to 3 sensors, or the batteries of up to 6. Change those limits in `MAX_SENSORS` in `src/lib/cards.ts`. In edit mode you drag to reorder, resize with the corner handle, remove with the minus and add with the plus. Undo and Redo step through the changes.
+- Without saved cards, Summary has a card per value for a single sensor, or a card per sensor when there are more. Above the cards it only lists what needs attention: an offline source, a sensor that went quiet or a low battery.
+- A sensor's page has a chart of the chosen value per hour, day, week, month, 6 months or year. The line is the average and the band runs from lowest to highest. All Recorded Data lists days or single readings, and can delete them.
+- A source's Diagnostics show the health it reports every 5 minutes.
+- `src/lib/metrics.ts` sets each value's label, icon, decimals and colour. Battery only shows outside a sensor's page and the Batteries card when it's low, battery voltage only under a sensor's Details.
+- Animations only use Tailwind's own utilities.
+- The wordmark is Bricolage Grotesque turned into outlines, so no font gets loaded. Text uses the system font.
 - Search engines are asked not to index it.

@@ -2,12 +2,15 @@ import { CheckCircleIcon, CircleIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
 import { formatDate, formatNumber, unitText } from '../../lib/format';
-import { failure, param, useLoad } from '../../lib/load';
+import { failure, useLoad } from '../../lib/load';
 import { metricStyle } from '../../lib/metrics';
+import { dataPath, sensorPath } from '../../lib/paths';
 import { fetchPoints } from '../../lib/readings';
+import type { Params } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import type { Point } from '../../lib/types';
 import { dangerButton, group, pressable, row, secondaryButton, textButton } from '../../lib/ui';
+import { startOfDay, wall, zoned } from '../../lib/zone';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { Row } from '../ui/List';
 import Message from '../ui/Message';
@@ -20,29 +23,26 @@ interface Item {
 
 const WINDOW_DAYS = 365;
 
-const day = (date: Date, offset = 0) => new Date(date.getFullYear(), date.getMonth(), date.getDate() + offset);
-
 const dateParam = (time: number) => {
-  const date = new Date(time);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const { year, month, day } = wall(time);
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 };
 
-const parseDate = (value: string | null) => {
+const parseDate = (value: string | undefined) => {
   const match = value?.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+  return match ? zoned(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
 };
 
 const iso = (time: number) => new Date(time).toISOString();
 
-export default function DataPage() {
-  const sensorId = Number(param('sensor'));
-  const metricName = param('metric') ?? '';
-  const date = parseDate(param('date'));
+export default function DataPage({ params }: { params: Params }) {
+  const sensorId = Number(params.id);
+  const metricName = params.metric ?? '';
+  const date = parseDate(params.date);
   const style = metricStyle(metricName);
-  const base = `/data/?sensor=${sensorId}&metric=${metricName}`;
   const { data } = useLoad(loadSensors);
   const [items, setItems] = useState<Item[]>([]);
-  const [windowEnd, setWindowEnd] = useState(() => (date ? day(date, 1) : day(new Date(), 1)));
+  const [windowEnd, setWindowEnd] = useState(() => (date ? startOfDay(date, 1) : startOfDay(Date.now(), 1)));
   const [exhausted, setExhausted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +59,7 @@ export default function DataPage() {
 
   useEffect(() => {
     let current = true;
-    const from = date ?? day(windowEnd, -WINDOW_DAYS);
+    const from = date ?? startOfDay(windowEnd, -WINDOW_DAYS);
     setLoading(true);
 
     fetchPoints(sensorId, metricName, from.getTime(), windowEnd.getTime(), date ? 'raw' : 'day').then(
@@ -69,8 +69,8 @@ export default function DataPage() {
         }
 
         // Older data can only exist when this window's data reaches back to its first day.
-        const reachesStart = points.length > 0 && points[0].time < day(from, 1).getTime();
-        setItems((list) => [...list, ...points.reverse().map((point) => ({ point, to: date ? point.time + 1000 : day(new Date(point.time), 1).getTime() }))]);
+        const reachesStart = points.length > 0 && points[0].time < startOfDay(from, 1).getTime();
+        setItems((list) => [...list, ...points.reverse().map((point) => ({ point, to: date ? point.time + 1000 : startOfDay(point.time, 1).getTime() }))]);
         setExhausted(date !== null || !reachesStart);
         setLoading(false);
       },
@@ -87,13 +87,13 @@ export default function DataPage() {
     setSelected(new Set());
     setEditing(false);
     setExhausted(false);
-    setWindowEnd(date ? day(date, 1) : day(new Date(), 1));
+    setWindowEnd(date ? startOfDay(date, 1) : startOfDay(Date.now(), 1));
   };
 
   const remove = async () => {
     const ranges =
       confirming === 'all'
-        ? [date ? { from: iso(date.getTime()), to: iso(day(date, 1).getTime()) } : { from: '1970-01-01T00:00:00Z', to: iso(day(new Date(), 1).getTime()) }]
+        ? [date ? { from: iso(date.getTime()), to: iso(startOfDay(date, 1).getTime()) } : { from: '1970-01-01T00:00:00Z', to: iso(startOfDay(Date.now(), 1).getTime()) }]
         : items.filter((item) => selected.has(item.point.time)).map((item) => ({ from: iso(item.point.time), to: iso(item.to) }));
     setBusy(true);
 
@@ -122,7 +122,7 @@ export default function DataPage() {
       <PageHeader
         title={date ? formatDate(date, 'dateLong') : 'All Recorded Data'}
         subtitle={date ? style.label : undefined}
-        back={date ? { href: base, label: 'All Data' } : { href: `/sensor/?id=${sensorId}&metric=${metricName}`, label: sensor?.name ?? 'Sensor' }}
+        back={date ? { href: dataPath(sensorId, metricName), label: 'All Data' } : { href: sensorPath(sensorId, metricName), label: sensor?.name ?? 'Sensor' }}
         actions={
           editing ? (
             <>
@@ -155,7 +155,12 @@ export default function DataPage() {
                 <span className="text-[17px] text-muted">{detail(point)}</span>
               </button>
             ) : (
-              <Row key={point.time} href={date ? undefined : `${base}&date=${dateParam(point.time)}`} label={<span className="tabular-nums">{format(point)}</span>} detail={detail(point)} />
+              <Row
+                key={point.time}
+                href={date ? undefined : dataPath(sensorId, metricName, dateParam(point.time))}
+                label={<span className="tabular-nums">{format(point)}</span>}
+                detail={detail(point)}
+              />
             ),
           )}
         </div>
@@ -163,7 +168,7 @@ export default function DataPage() {
       {!loading && !items.length && <p className="px-1 text-[15px] text-muted">No data recorded.</p>}
       {loading && <Message loading />}
       {!exhausted && !loading && (
-        <button type="button" className={`${secondaryButton} mt-4 w-full`} onClick={() => setWindowEnd(day(windowEnd, -WINDOW_DAYS))}>
+        <button type="button" className={`${secondaryButton} mt-4 w-full`} onClick={() => setWindowEnd(startOfDay(windowEnd, -WINDOW_DAYS))}>
           Show Earlier
         </button>
       )}

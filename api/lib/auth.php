@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 const SESSION_COOKIE = '__Secure-lyra_session';
 const SESSION_SECONDS = 2592000;
+const SESSION_TOUCH_SECONDS = 300;
+
+function user_agent(): ?string
+{
+    $agent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+    return $agent === '' ? null : mb_substr(mb_scrub($agent, 'UTF-8'), 0, 255);
+}
 
 function current_session(PDO $db): ?array
 {
@@ -14,14 +22,19 @@ function current_session(PDO $db): ?array
     }
 
     $stmt = $db->prepare(
-        'SELECT p.user_id, p.passkey_id
+        'SELECT s.session_id, p.user_id, p.passkey_id, s.last_used_at > CURRENT_TIMESTAMP - INTERVAL ? SECOND AS recent
          FROM sessions s
          JOIN passkeys p USING (passkey_id)
          WHERE s.token_hash = ? AND s.expires_at > CURRENT_TIMESTAMP'
     );
-    $stmt->execute([hash('sha256', $token)]);
+    $stmt->execute([SESSION_TOUCH_SECONDS, hash('sha256', $token)]);
+    $session = $stmt->fetch();
 
-    return $stmt->fetch() ?: null;
+    if ($session !== false && !$session['recent']) {
+        $db->prepare('UPDATE sessions SET last_used_at = CURRENT_TIMESTAMP, user_agent = ? WHERE session_id = ?')->execute([user_agent(), $session['session_id']]);
+    }
+
+    return $session ?: null;
 }
 
 function require_session(PDO $db): array
@@ -34,8 +47,8 @@ function start_session(PDO $db, int $passkey_id): void
     $token = bin2hex(random_bytes(32));
 
     $db->exec('DELETE FROM sessions WHERE expires_at <= CURRENT_TIMESTAMP');
-    $db->prepare('INSERT INTO sessions (token_hash, passkey_id, expires_at) VALUES (?, ?, CURRENT_TIMESTAMP + INTERVAL ? SECOND)')
-        ->execute([hash('sha256', $token), $passkey_id, SESSION_SECONDS]);
+    $db->prepare('INSERT INTO sessions (token_hash, passkey_id, user_agent, expires_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP + INTERVAL ? SECOND)')
+        ->execute([hash('sha256', $token), $passkey_id, user_agent(), SESSION_SECONDS]);
 
     set_session_cookie($token, time() + SESSION_SECONDS);
 }

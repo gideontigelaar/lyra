@@ -1,7 +1,5 @@
 # Lyra API
-API that decodes the sensor broadcasts the firmware relays, stores them in the MariaDB database and serves the website.
-
-Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
+Takes the sensor broadcasts the boards relay, decodes them, stores the readings in MariaDB and serves the website. Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
 
 ## Requirements
 - PHP 8.4 with `pdo_mysql`, `openssl`, `sodium` and `mbstring`
@@ -88,6 +86,7 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
        name             VARCHAR(50)                   NOT NULL,
        dashboard        JSON                          NULL DEFAULT NULL,
        temperature_unit ENUM('celsius', 'fahrenheit') NOT NULL DEFAULT 'celsius',
+       time_zone        VARCHAR(64)                   NULL DEFAULT NULL,
        created_at       TIMESTAMP                     NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (user_id),
        UNIQUE KEY (handle),
@@ -108,11 +107,15 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
    );
 
    CREATE TABLE sessions (
-       token_hash CHAR(64)          NOT NULL,
-       passkey_id SMALLINT UNSIGNED NOT NULL,
-       expires_at TIMESTAMP         NOT NULL,
-       created_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
-       PRIMARY KEY (token_hash),
+       session_id   INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+       token_hash   CHAR(64)          NOT NULL,
+       passkey_id   SMALLINT UNSIGNED NOT NULL,
+       user_agent   VARCHAR(255)      NULL DEFAULT NULL,
+       last_used_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       expires_at   TIMESTAMP         NOT NULL,
+       created_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+       PRIMARY KEY (session_id),
+       UNIQUE KEY (token_hash),
        FOREIGN KEY (passkey_id) REFERENCES passkeys (passkey_id)
    );
 
@@ -144,30 +147,25 @@ Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
    ```
 
 ## Credentials
-Copy the template to the server, run from the root of the repository:
+Copy the template to the server, from the root of the repository:
 ```bash
 scp api/creds.json.template debian-server:/var/www/api.gideontigelaar.com/lyra/creds.json
 ```
 
-Then on the server, set the database password and permissions:
+Then on the server, fill in the database password and lock the file down:
 ```bash
 nano /var/www/api.gideontigelaar.com/lyra/creds.json
 sudo chown gideon:lyra /var/www/api.gideontigelaar.com/lyra/creds.json
 sudo chmod 640 /var/www/api.gideontigelaar.com/lyra/creds.json
 ```
 
-## Sources and sensors
-Sources (the ESP32 boards) and sensors are managed on the website. Adding a source shows its key once: it goes in `firmware/include/credentials.h`, and only its hash is stored.
-
-A sensor needs its MAC address, its type and the source that relays it. The source picks it up within 5 minutes, and each value is then recorded at its type's `default_interval` until you change it.
-
-## Users and passkeys
-Signing in to the website only works with passkeys. Create the owner, in `sudo mariadb lyra`:
+## First sign-in
+The website only signs in with passkeys. Create the owner, in `sudo mariadb lyra`:
 ```sql
 INSERT INTO users (handle, name) VALUES (RANDOM_BYTES(32), 'USER_NAME');
 ```
 
-The first passkey needs a one-time setup code. Create one:
+The first passkey needs a one-time setup code. Make one:
 ```bash
 openssl rand -hex 16
 ```
@@ -177,23 +175,23 @@ Store it for an hour, in `sudo mariadb lyra`:
 INSERT INTO setup_codes (code_hash, user_id, expires_at) VALUES (SHA2('SETUP_CODE', 256), (SELECT user_id FROM users WHERE name = 'USER_NAME'), CURRENT_TIMESTAMP + INTERVAL 1 HOUR);
 ```
 
-Then open [lyra.gideontigelaar.com/setup](https://lyra.gideontigelaar.com/setup) and create the passkey with it. More passkeys can be added in the website's settings, so a new setup code is only needed when every passkey is lost.
+Then open [lyra.gideontigelaar.com/setup](https://lyra.gideontigelaar.com/setup) and create the passkey with it. More passkeys can be added in the website's settings, so you only need a new code when every passkey is gone.
 
 ## Deploying
-Run from the root of the repository:
+From the root of the repository:
 ```bash
 composer install --working-dir=api --no-dev --classmap-authoritative
 rsync -av --delete --exclude README.md --exclude creds.json.template --exclude creds.json --exclude composer.json --exclude composer.lock --exclude .DS_Store api/ debian-server:/var/www/api.gideontigelaar.com/lyra/
 ```
 
-Add `--dry-run` to see what would change first. Files deleted locally are also deleted on the server, except `creds.json`.
+Add `--dry-run` first to see what would change. Files deleted locally are deleted on the server too, except `creds.json`.
 
 ## Endpoints
 - `GET /lyra/`: health check
 - `GET /lyra/device/sensors`: the source's sensors and how often to relay each
 - `POST /lyra/device/adverts`: relay sensor broadcasts
-- `POST /lyra/device/telemetry`: the source's own health, for troubleshooting
-- `GET /lyra/auth/setup`: whether an unused setup code is waiting, so the sign-in page can offer it
+- `POST /lyra/device/telemetry`: the source's own health
+- `GET /lyra/auth/setup`: whether a setup code is waiting
 - `POST /lyra/auth/options`: a challenge to sign in with
 - `POST /lyra/auth/login`: sign in with a passkey
 - `POST /lyra/auth/logout`: sign out
@@ -201,6 +199,8 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `POST /lyra/passkeys/options`: a challenge to register a passkey with
 - `POST /lyra/passkeys`: register a passkey
 - `DELETE /lyra/passkeys/{id}`: remove a passkey
+- `GET /lyra/sessions`: the user's sessions, with browser and last use
+- `DELETE /lyra/sessions/{id}`: sign a session out
 - `GET /lyra/sensors`: every sensor with its values, latest readings and sinks
 - `POST /lyra/sensors`: add a sensor
 - `PATCH /lyra/sensors/{id}`: change a sensor's name, source, values or sinks
@@ -209,17 +209,17 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `POST /lyra/devices`: add a source, returns its key once
 - `PATCH /lyra/devices/{id}`: rename a source or turn it on or off
 - `POST /lyra/devices/{id}/key`: replace a source's key
-- `DELETE /lyra/devices/{id}`: remove a source, its sensors are kept
+- `DELETE /lyra/devices/{id}`: remove a source, keeping its sensors
 - `GET /lyra/decoders`, `GET /lyra/sinks`: the sensor types and destinations there are
 - `GET /lyra/readings?sensor=ID&metric=NAME&from=TIME&to=TIME&tz=ZONE&bucket=BUCKET`: one value of one sensor over time
 - `DELETE /lyra/readings`: delete readings in time ranges
-- `GET /lyra/dashboard`: the user's summary cards, `null` until customised
+- `GET /lyra/dashboard`: the summary cards, `null` until customised
 - `PUT /lyra/dashboard`: save the summary cards
 - `DELETE /lyra/dashboard`: go back to the default summary
-- `GET /lyra/settings`: the user's settings
-- `PATCH /lyra/settings`: change `temperature_unit` to `celsius` or `fahrenheit`
+- `GET /lyra/settings`: `temperature_unit` and `time_zone`
+- `PATCH /lyra/settings`: change either, `time_zone` is an IANA name or `null` to follow the browser
 
-Device endpoints need the header `Authorization: Bearer KEY`. The other endpoints use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
+Device endpoints need the header `Authorization: Bearer KEY`. The rest use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
 
 Response of `GET /lyra/device/sensors`:
 ```json
@@ -246,18 +246,19 @@ Body of `DELETE /lyra/readings`:
 {"sensor": 1, "metric": "temperature", "ranges": [{"from": "2026-11-07T23:00:00Z", "to": "2026-11-08T23:00:00Z"}]}
 ```
 
-## Notes
-- Every response carries the security headers of `send_security_headers()` in `lib/http.php`.
-- Each file in `modules/` defines its handlers and returns its routes. New modules are added to `MODULES` in `index.php`, shared helpers live in `lib/`.
-- Broadcasts are decoded here, so a new sensor type is a file in `decoders/` plus its name in `DECODERS` in `lib/pipeline.php`. A new destination is a file in `sinks/` plus its name in `SINKS`. Neither needs a firmware update.
-- `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
-- A source only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
-- Only the latest telemetry of a source is kept. Unknown telemetry fields are ignored, so newer firmware works with this API. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, `pending` and `dropped` count broadcasts waiting in or dropped from the source's queue.
-- A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
-- `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, an IANA time zone that defaults to UTC.
+## Good to know
+- Every response carries the security headers from `send_security_headers()` in `lib/http.php`.
+- Each file in `modules/` has its handlers and returns its routes. A new module goes in `MODULES` in `index.php`, shared helpers in `lib/`.
+- Broadcasts are decoded here, not on the boards. A new sensor type is a file in `plugins/decoders/` plus its name in `DECODERS` in `lib/pipeline.php`, a new destination a file in `plugins/sinks/` plus its name in `SINKS`. Neither needs a firmware update.
+- `bthome` reads unencrypted BTHome v2, like the pvvx firmware sends. `lyra` stores the readings here.
+- Sources and sensors are managed on the website. A new source's key is shown once, for `firmware/include/credentials.h`, and only its hash is stored. A new sensor reaches its source within 5 minutes, and each value is recorded at its metric's `default_interval` until you change it.
+- A source only relays its own sensors. Values missing from the `metrics` table are ignored, so a new kind of value only needs a row there.
+- A value is stored once its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so late broadcasts still get the right time.
+- Only a source's latest telemetry is kept, and unknown fields are ignored, so newer firmware keeps working. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, and `pending` and `dropped` count broadcasts waiting in or dropped from the queue.
+- `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, which defaults to UTC.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
-- Temperatures are stored in °C. `temperature_unit` only changes how the website shows them.
-- Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`.
-- Sessions last 30 days. Session tokens, setup codes, source keys and challenges are only stored as SHA-256 hashes.
-- Removing a passkey ends its sessions. The last passkey can't be removed.
+- Temperatures are stored in °C, `temperature_unit` only changes what the website shows.
+- Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`. The last one can't be removed, and removing one ends its sessions.
+- Sessions last 30 days. Their browser and last use are updated at most every 5 minutes.
+- Session tokens, setup codes, source keys and challenges are only stored as SHA-256 hashes.
 - All timestamps are in UTC.

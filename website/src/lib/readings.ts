@@ -1,7 +1,7 @@
 import { api } from './api';
-import { timeZone } from './load';
 import type { Bucketing, Point, ReadingsResponse } from './types';
 import { displayUnit } from './units';
+import { timeZone } from './zone';
 
 export const fetchPoints = async (sensor: number, metric: string, from: number, to: number, bucket: Bucketing): Promise<Point[]> => {
   const query = new URLSearchParams({

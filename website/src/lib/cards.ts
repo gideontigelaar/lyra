@@ -1,10 +1,34 @@
-import { mainMetrics, metricStyle } from './metrics';
+import { dataMetrics, hasBattery, mainMetrics, metricStyle } from './metrics';
+import { sensorPath } from './paths';
 import type { Card, Sensor, SensorMetric } from './types';
 
-export const cardKey = (card: Card) =>
-  card.type === 'combined' ? `combined:${[...card.sensors].sort((a, b) => a - b).join('+')}:${card.metric}` : `${card.type}:${card.sensor ?? ''}:${card.metric ?? ''}`;
+// The most a card holds: values on a sensor card, sensors on a batteries or combined card.
+export const MAX_PER_CARD = { sensor: 6, batteries: 6, combined: 3 };
 
-export const cardHref = (card: Card) => (card.type === 'batteries' || card.type === 'combined' ? '/sensors/' : `/sensor/?id=${card.sensor}${card.type === 'metric' ? `&metric=${card.metric}` : ''}`);
+const joined = (list: (number | string)[]) => [...list].sort().join('+');
+
+export const cardKey = (card: Card) => {
+  switch (card.type) {
+    case 'sensor':
+      return `sensor:${card.sensor}:${joined(card.metrics)}`;
+    case 'batteries':
+    case 'combined':
+      return `${card.type}:${joined(card.sensors)}:${card.metric ?? ''}`;
+    default:
+      return `metric:${card.sensor}:${card.metric}`;
+  }
+};
+
+// Main values first, then battery, like everywhere else.
+const valueOrder = <T extends { name: string }>(metrics: T[]) => [...mainMetrics(metrics), ...metrics.filter((metric) => metric.name === 'battery')];
+
+// What a sensor card starts with: its recorded main values and battery.
+export const sensorValues = (sensor: Sensor) =>
+  valueOrder(sensor.metrics.filter((metric) => metric.active))
+    .map((metric) => metric.name)
+    .slice(0, MAX_PER_CARD.sensor);
+
+export const cardHref = (card: Card) => (card.type === 'batteries' || card.type === 'combined' ? '/sensors/' : sensorPath(card.sensor, card.type === 'metric' ? card.metric : undefined));
 
 export const sparkKey = (sensor: number, metric: string) => `${sensor}:${metric}`;
 
@@ -26,9 +50,9 @@ export const cardValues = (card: Card, sensors: Sensor[]): { sensor: Sensor; met
     case 'metric':
       return pick(card.sensor, (metric) => metric.name === card.metric);
     default: {
-      const fresh = pick(card.sensor, (metric) => metric.active && metric.latest !== null).map(({ metric }) => metric);
       const sensor = sensors.find((item) => item.id === card.sensor)!;
-      return [...mainMetrics(fresh), ...fresh.filter((metric) => metric.name === 'battery')].map((metric) => ({ sensor, metric }));
+      const fresh = sensor.metrics.filter((metric) => metric.active && metric.latest !== null && card.metrics.includes(metric.name));
+      return valueOrder(fresh).map((metric) => ({ sensor, metric }));
     }
   }
 };
@@ -38,25 +62,48 @@ export const defaultCards = (sensors: Sensor[]): Card[] => {
 
   return metrics.length
     ? metrics.map((metric) => ({ type: 'metric', size: 'large', sensor: sensors[0].id, metric: metric.name }))
-    : sensors.map((sensor) => ({ type: 'sensor', size: 'large', sensor: sensor.id, metric: null }));
+    : sensors.map((sensor) => ({ type: 'sensor', size: 'large', sensor: sensor.id, metric: null, metrics: sensorValues(sensor) }));
 };
 
 const has = (sensors: Sensor[], id: unknown, metric: unknown) => sensors.some((sensor) => sensor.id === id && sensor.metrics.some((item) => item.name === metric));
 
-const fits = (card: Record<string, unknown>, sensors: Sensor[]) => {
-  if (card.size !== 'small' && card.size !== 'large') {
-    return false;
+// The sensors of a batteries or combined card that still exist and have the value, if at least 2 are left.
+const members = (ids: unknown, metric: string, max: number, sensors: Sensor[]) => {
+  const list = [...new Set(Array.isArray(ids) ? ids : [])].filter((id) => has(sensors, id, metric)).slice(0, max);
+  return list.length >= 2 ? list : null;
+};
+
+const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names }: Record<string, unknown>, sensors: Sensor[]): Card | null => {
+  if (size !== 'small' && size !== 'large') {
+    return null;
   }
 
-  switch (card.type) {
-    case 'batteries':
-      return card.sensor === null && card.metric === null;
-    case 'combined':
-      return typeof card.metric === 'string' && canCombine(card.metric) && Array.isArray(card.sensors) && new Set(card.sensors).size >= 2 && card.sensors.every((id) => has(sensors, id, card.metric));
-    case 'sensor':
-      return card.metric === null && sensors.some((sensor) => sensor.id === card.sensor);
+  switch (type) {
+    case 'batteries': {
+      // Batteries cards saved before sensors could be picked showed every battery.
+      const list = members(ids ?? sensors.filter(hasBattery).map((item) => item.id), 'battery', MAX_PER_CARD.batteries, sensors);
+      return list && { type, size, sensor: null, metric: null, sensors: list };
+    }
+    case 'combined': {
+      const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, MAX_PER_CARD.combined, sensors) : null;
+      return list && { type, size, sensor: null, metric: metric as string, sensors: list };
+    }
+    case 'sensor': {
+      const found = sensors.find((item) => item.id === sensor);
+
+      if (!found || metric !== null) {
+        return null;
+      }
+
+      // No values means all of them: cards saved before values could be picked, or before the sensor had any.
+      const known = dataMetrics(found.metrics).map((item) => item.name);
+      const list = [...new Set(Array.isArray(names) ? names : [])].filter((name) => known.includes(name)).slice(0, MAX_PER_CARD.sensor);
+      return { type, size, sensor: found.id, metric, metrics: list.length ? list : sensorValues(found) };
+    }
+    case 'metric':
+      return has(sensors, sensor, metric) ? { type, size, sensor: sensor as number, metric: metric as string } : null;
     default:
-      return card.type === 'metric' && has(sensors, card.sensor, card.metric);
+      return null;
   }
 };
 
@@ -65,11 +112,6 @@ export const toCards = (value: unknown, sensors: Sensor[]): Card[] | null => {
     return null;
   }
 
-  const cards = value
-    .filter((card) => typeof card === 'object' && card !== null && fits(card, sensors))
-    .map(
-      ({ type, size, sensor, metric, sensors: ids }) => (type === 'combined' ? { type, size, sensor: null, metric, sensors: [...new Set(ids as number[])] } : { type, size, sensor, metric }) as Card,
-    );
-
+  const cards = value.flatMap((card) => (typeof card === 'object' && card !== null ? (toCard(card, sensors) ?? []) : []));
   return [...new Map(cards.map((card) => [cardKey(card), card])).values()];
 };

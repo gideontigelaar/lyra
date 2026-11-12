@@ -86,8 +86,8 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
 
   return (
     <>
-      <div className="flex items-start gap-2.5">
-        <MetricChip metric={name} />
+      <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
+        <MetricChip metric={name} small={!large} />
         <div className="min-w-0 flex-1">
           <Header
             title={combined ? `Average ${style.label.toLowerCase()}` : style.label}
@@ -120,31 +120,33 @@ const rowsOf = <T,>(items: T[], large: boolean) => {
 function SensorBody({ card, sensors, sparks, now }: Props) {
   const sensor = sensors.find((item) => item.id === card.sensor)!;
   const large = card.size === 'large';
-  const values = cardValues(card, sensors).slice(0, large ? 8 : 6);
+  const values = cardValues(card, sensors);
   const rows = rowsOf(values, large);
   const newest = values
     .map(({ metric }) => metric.latest!.measured_at)
     .sort()
     .at(-1);
-  const size = large ? (rows.length === 1 ? 'large' : 'medium') : values.length <= 2 ? 'large' : values.length <= 4 ? 'medium' : 'small';
+  const size = large ? (rows.length === 1 ? 'large' : 'medium') : values.length <= 2 ? 'large' : values.length <= 3 ? 'medium' : 'small';
 
+  // On a large card a value under 8rem wide gets its chip above it, a small card only has room for chips with one value per row.
+  // Two rows only have room for graphs on wider, so taller, cards.
   return (
     <>
       <Header title={sensor.name} time={newest ? clockTime(newest, now) : null} large={large} />
       {values.length ? (
-        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
+        <div className={`mt-3 flex min-h-0 flex-1 flex-col ${large ? 'gap-3' : 'gap-2'}`}>
           {rows.map((row, i) => (
-            <div key={i} className="flex min-h-0 flex-1 gap-4">
+            <div key={i} className="flex min-h-0 flex-1 gap-3">
               {row.map(({ metric }) => {
                 const style = metricStyle(metric.name);
                 const spark = large ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
                 return (
-                  <div key={metric.name} className="flex min-h-0 min-w-0 flex-1 flex-col justify-end">
-                    <div className="flex items-center gap-2">
-                      <MetricChip metric={metric.name} small />
+                  <div key={metric.name} className="@container flex min-h-0 min-w-0 flex-1 flex-col justify-end">
+                    <div className={`flex ${large ? 'flex-col items-start gap-1 @[8rem]:flex-row @[8rem]:items-center @[8rem]:gap-2' : 'items-center gap-2'}`}>
+                      {(large || row.length === 1) && <MetricChip metric={metric.name} small />}
                       <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} />
                     </div>
-                    {spark && <Sparkline {...spark} color={style.color} className="mt-2 min-h-5 w-full flex-1" />}
+                    {spark && <Sparkline {...spark} color={style.color} className={`mt-2 w-full flex-1 ${rows.length === 1 ? 'min-h-5' : 'hidden min-h-4 @[24rem]/card:block'}`} />}
                   </div>
                 );
               })}
@@ -158,28 +160,36 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   );
 }
 
-function BatteriesBody({ card, sensors }: Props) {
+const BATTERY_ROWS = 3;
+
+// Lowest first, in one column with bars when they fit. A large card that's wide, so tall, enough fits 4, more go in two columns.
+function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteries' }>; sensors: Sensor[] }) {
   const style = metricStyle('battery');
   const large = card.size === 'large';
-  const list = sensors
-    .filter(hasBattery)
+  const all = sensors
+    .filter((sensor) => card.sensors.includes(sensor.id) && hasBattery(sensor))
     .map((sensor) => ({ sensor, level: batteryLevel(sensor), low: lowBattery(sensor) !== null }))
-    .sort((a, b) => (a.level ?? Infinity) - (b.level ?? Infinity))
-    .slice(0, large ? 4 : 3);
+    .sort((a, b) => (a.level ?? Infinity) - (b.level ?? Infinity));
+  const list = large ? all : all.slice(0, BATTERY_ROWS);
+  const hidden = all.length - list.length;
+  const layout =
+    !large || list.length <= BATTERY_ROWS ? 'flex flex-col' : list.length === 4 ? 'grid grid-flow-col grid-rows-2 @[24rem]/card:flex @[24rem]/card:flex-col' : 'grid grid-flow-col grid-rows-3';
+  const bars = !large ? 'hidden' : list.length <= BATTERY_ROWS ? '' : list.length === 4 ? 'hidden @[24rem]/card:block' : 'hidden';
 
   return (
     <>
       <div className="flex items-center gap-2.5">
         <MetricChip metric="battery" />
-        <span className="truncate text-[15px] font-semibold">Batteries</span>
+        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">Batteries</span>
+        {hidden > 0 && <span className="shrink-0 text-[13px] text-muted">+{hidden}</span>}
       </div>
-      <ul className="mt-auto space-y-1.5 pt-3">
+      <ul className={`mt-auto gap-x-6 gap-y-1.5 pt-3 ${layout}`}>
         {list.map(({ sensor, level, low }) => (
-          <li key={sensor.id} className="flex items-center gap-2 text-[15px]">
+          <li key={sensor.id} className="flex min-w-0 items-center gap-2 text-[15px]">
             <span className="min-w-0 flex-1 truncate">{sensor.name}</span>
             {low && <WarningCircleIcon weight="fill" className="size-4 shrink-0" style={{ color: 'var(--status-warning)' }} aria-label="Low" />}
-            {large && level !== null && (
-              <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-fill" aria-hidden="true">
+            {level !== null && (
+              <span className={`h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-fill ${bars}`} aria-hidden="true">
                 <span
                   className="block h-full rounded-full transition-[width] duration-500"
                   style={{ width: `${Math.min(Math.max(level, 0), 100)}%`, background: low ? 'var(--status-warning)' : style.color }}
@@ -198,14 +208,14 @@ export default function SummaryCard(props: Props) {
   const { card, sensors, editing, onRemove, onResize } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey(card), disabled: !editing });
   const name = cardName(card, sensors);
-  const body = card.type === 'sensor' ? <SensorBody {...props} /> : card.type === 'batteries' ? <BatteriesBody {...props} /> : <ValueBody {...props} />;
+  const body = card.type === 'sensor' ? <SensorBody {...props} /> : card.type === 'batteries' ? <BatteriesBody card={card} sensors={sensors} /> : <ValueBody {...props} />;
   const surface = `${cardClass} flex h-full flex-col overflow-hidden p-4`;
 
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${isDragging ? 'z-10' : ''}`}
+      className={`@container/card relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${isDragging ? 'z-10' : ''}`}
     >
       {editing ? (
         <div

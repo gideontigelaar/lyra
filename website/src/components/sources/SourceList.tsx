@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { api } from '../../lib/api';
 import { timeAgo } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
+import { sourcePath } from '../../lib/paths';
 import { isOnline } from '../../lib/status';
 import type { Device } from '../../lib/types';
 import { iconButton } from '../../lib/ui';
@@ -55,7 +56,7 @@ export default function SourceList() {
             {data.devices.map((device) => (
               <Row
                 key={device.id}
-                href={`/source/?id=${device.id}`}
+                href={sourcePath(device.id)}
                 label={
                   <>
                     <span className="block truncate">{device.name}</span>

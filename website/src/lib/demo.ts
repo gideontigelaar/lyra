@@ -19,6 +19,7 @@ interface DemoSensor {
   since: number;
   metrics: DemoMetric[];
   sinks: string[];
+  climate?: { temperature: number; humidity: number; outside?: boolean };
 }
 
 const MINUTE = 60000;
@@ -61,19 +62,32 @@ const sensors: DemoSensor[] = [
     since: 400,
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600), metric('voltage', 3600)],
     sinks: ['lyra'],
+    climate: { temperature: 19.4, humidity: 54 },
   },
   {
     id: 2,
-    name: 'Living room',
+    name: 'Living room sofa',
     address: 'A4:C1:38:5B:10:7E',
     decoder: 'bthome',
     device: 1,
     since: 400,
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600)],
     sinks: ['lyra'],
+    climate: { temperature: 21.2, humidity: 49 },
   },
   {
     id: 3,
+    name: 'Living room window',
+    address: 'A4:C1:38:6D:2E:B1',
+    decoder: 'bthome',
+    device: 1,
+    since: 400,
+    metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600)],
+    sinks: ['lyra'],
+    climate: { temperature: 20.5, humidity: 51 },
+  },
+  {
+    id: 4,
     name: 'Balcony',
     address: 'A4:C1:38:91:0C:44',
     decoder: 'bthome',
@@ -81,15 +95,33 @@ const sensors: DemoSensor[] = [
     since: 400,
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600)],
     sinks: ['lyra'],
+    climate: { temperature: 13, humidity: 64, outside: true },
   },
 ];
 
 const deleted = new Map<string, { from: number; to: number }[]>();
-let dashboard: unknown = null;
-let settings = { temperature_unit: 'celsius' };
+let dashboard: unknown = [
+  { type: 'combined', size: 'large', sensor: null, metric: 'temperature', sensors: [2, 3] },
+  { type: 'sensor', size: 'large', sensor: 1, metric: null },
+  { type: 'metric', size: 'small', sensor: 4, metric: 'temperature' },
+  { type: 'metric', size: 'small', sensor: 4, metric: 'humidity' },
+  { type: 'batteries', size: 'large', sensor: null, metric: null, sensors: [1, 2, 3, 4] },
+];
+let settings = { temperature_unit: 'celsius', time_zone: null };
 let passkeys = [
   { id: 1, name: 'MacBook', created_at: iso(now() - 40 * DAY), last_used_at: iso(now() - 2 * HOUR), current: true },
   { id: 2, name: 'iPhone', created_at: iso(now() - 12 * DAY), last_used_at: iso(now() - 3 * DAY), current: false },
+];
+let sessions = [
+  { id: 1, user_agent: navigator.userAgent, passkey: 'MacBook', created_at: iso(now() - 2 * HOUR), last_used_at: iso(now()), current: true },
+  {
+    id: 2,
+    user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
+    passkey: 'iPhone',
+    created_at: iso(now() - 3 * DAY),
+    last_used_at: iso(now() - 5 * HOUR),
+    current: false,
+  },
 ];
 
 const noise = (seed: number) => {
@@ -101,13 +133,13 @@ const value = (sensor: DemoSensor, name: string, time: number) => {
   const day = (time / DAY) % 1;
   const season = Math.sin(2 * Math.PI * (time / YEAR - 0.2));
   const jitter = noise(time / 900000 + sensor.id * 7919 + name.length * 104729);
-  const outside = sensor.id === 3;
+  const { temperature, humidity, outside = false } = sensor.climate ?? { temperature: 20, humidity: 50 };
 
   switch (name) {
     case 'temperature':
-      return +(19.5 + sensor.id * 0.9 - (outside ? 9 : 0) + (outside ? 4 : 2) * Math.sin(2 * Math.PI * (day - 0.55)) + (outside ? 7 : 3) * season + 0.25 * jitter).toFixed(2);
+      return +(temperature + (outside ? 4 : 2) * Math.sin(2 * Math.PI * (day - 0.55)) + (outside ? 7 : 1) * season + 0.25 * jitter).toFixed(2);
     case 'humidity':
-      return +(55 - sensor.id * 3 + (outside ? 18 : 0) + 7 * Math.sin(2 * Math.PI * (day + 0.1)) - 6 * season + 1.5 * jitter).toFixed(1);
+      return +(humidity + 7 * Math.sin(2 * Math.PI * (day + 0.1)) - 6 * season + 1.5 * jitter).toFixed(1);
     case 'battery':
       return 97 - sensor.id * 6;
     default:
@@ -281,14 +313,20 @@ const routes: Record<string, Handler> = {
   },
   'GET /settings': () => settings,
   'PATCH /settings': ({ body }) => {
-    settings = { temperature_unit: body.temperature_unit };
+    settings = { ...settings, ...body };
   },
   'GET /passkeys': () => ({ passkeys }),
   'POST /passkeys/options': () => {
     throw new ApiError(403, "Passkeys can't be added in the demo.");
   },
   'DELETE /passkeys/{id}': ({ id }) => {
+    const name = passkeys.find((passkey) => passkey.id === id)?.name;
     passkeys = passkeys.filter((passkey) => passkey.id !== id);
+    sessions = sessions.filter((session) => session.passkey !== name);
+  },
+  'GET /sessions': () => ({ sessions }),
+  'DELETE /sessions/{id}': ({ id }) => {
+    sessions = sessions.filter((session) => session.id !== id);
   },
   'GET /auth/setup': () => ({ available: false }),
   'POST /auth/logout': () => undefined,

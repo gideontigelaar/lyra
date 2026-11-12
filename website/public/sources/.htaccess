@@ -1,0 +1,2 @@
+# Every address under /sources/ is the same app page, which reads the rest of the address itself.
+FallbackResource /sources/index.html

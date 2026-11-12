@@ -1,8 +1,9 @@
 import { CheckCircleIcon, CircleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { api } from '../../lib/api';
-import { failure, param, useLoad } from '../../lib/load';
-import { navigate } from '../../lib/router';
+import { failure, useLoad } from '../../lib/load';
+import { sensorPath } from '../../lib/paths';
+import { type Params, navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import type { Device } from '../../lib/types';
 import { group, pressable, primaryButton, row } from '../../lib/ui';
@@ -19,8 +20,8 @@ import KeyDialog from './KeyDialog';
 import Diagnostics from './Diagnostics';
 import { sourceStatus } from './SourceList';
 
-export default function SourcePage() {
-  const id = Number(param('id'));
+export default function SourcePage({ params }: { params: Params }) {
+  const id = Number(params.id);
   const { data, error, reload } = useLoad(() => Promise.all([api<{ devices: Device[] }>('/devices'), loadSensors(), displayUnit('°C')]));
   const [dialog, setDialog] = useState<'rename' | 'assign' | 'key' | 'remove' | null>(null);
   const [key, setKey] = useState<string | null>(null);
@@ -61,7 +62,7 @@ export default function SourcePage() {
       <Message error={actionError} />
       <Section title="Sensors">
         {assigned.map((sensor) => (
-          <Row key={sensor.id} href={`/sensor/?id=${sensor.id}`} label={sensor.name} detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>} />
+          <Row key={sensor.id} href={sensorPath(sensor.id)} label={sensor.name} detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>} />
         ))}
         <Row label={<span className="text-accent">Choose Sensors…</span>} onClick={() => setDialog('assign')} />
       </Section>

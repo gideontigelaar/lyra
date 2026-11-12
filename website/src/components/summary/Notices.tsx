@@ -1,6 +1,7 @@
 import { CaretRightIcon, WarningCircleIcon } from '@phosphor-icons/react';
 import { clockTime, timeAgo } from '../../lib/format';
 import { lowBattery } from '../../lib/metrics';
+import { sensorPath, sourcePath } from '../../lib/paths';
 import { isFresh, isOnline } from '../../lib/status';
 import type { Device, Sensor } from '../../lib/types';
 import { group, pressable, row } from '../../lib/ui';
@@ -22,13 +23,13 @@ const notices = ({ sensors, devices, now }: Props) => {
         key: `device:${device.id}`,
         text: `${device.name} is offline`,
         detail: device.last_seen_at ? `Seen ${timeAgo(device.last_seen_at, now)}` : 'Never connected',
-        href: `/source/?id=${device.id}`,
+        href: sourcePath(device.id),
       });
     }
   }
 
   for (const sensor of sensors) {
-    const href = `/sensor/?id=${sensor.id}`;
+    const href = sensorPath(sensor.id);
     const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
     const battery = lowBattery(sensor);
 

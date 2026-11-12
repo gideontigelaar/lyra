@@ -4,6 +4,7 @@ import { api } from '../../lib/api';
 import { clockTime, formatNumber, unitText } from '../../lib/format';
 import { useLoad } from '../../lib/load';
 import { lowBattery, mainMetrics, metricStyle } from '../../lib/metrics';
+import { sensorPath } from '../../lib/paths';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh } from '../../lib/status';
 import type { Device, Option, Sensor } from '../../lib/types';
@@ -69,7 +70,7 @@ export default function SensorList() {
                 return (
                   <Row
                     key={sensor.id}
-                    href={`/sensor/?id=${sensor.id}`}
+                    href={sensorPath(sensor.id)}
                     label={
                       <>
                         <span className="block truncate">{sensor.name}</span>

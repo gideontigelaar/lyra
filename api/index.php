@@ -17,7 +17,7 @@ set_exception_handler(function (Throwable $e): void {
 send_security_headers();
 allow_website();
 
-const MODULES = ['health', 'device', 'auth', 'passkeys', 'sensors', 'devices', 'data', 'dashboard', 'settings'];
+const MODULES = ['health', 'device', 'auth', 'passkeys', 'sessions', 'sensors', 'devices', 'data', 'dashboard', 'settings'];
 
 $routes = [];
 

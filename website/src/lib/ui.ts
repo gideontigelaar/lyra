@@ -26,4 +26,6 @@ export const sectionTitle = 'text-xs font-semibold tracking-wider text-muted upp
 
 export const appear = 'transition duration-300 ease-out starting:translate-y-1 starting:opacity-0';
 
+export const inlineSelect = 'max-w-40 truncate rounded-lg bg-transparent py-1 text-right text-[17px] text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent';
+
 export const label = 'mb-1.5 block text-sm font-semibold text-muted';

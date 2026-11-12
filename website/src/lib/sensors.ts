@@ -1,6 +1,7 @@
 import { api } from './api';
+import { loadSettings } from './settings';
 import type { Sensor } from './types';
-import { converter, loadSettings } from './units';
+import { converter } from './units';
 
 export const loadSensors = async (): Promise<Sensor[]> => {
   const [{ sensors }, { temperature_unit }] = await Promise.all([api<{ sensors: Sensor[] }>('/sensors'), loadSettings()]);

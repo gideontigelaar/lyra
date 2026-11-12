@@ -1,7 +1,9 @@
 import { BroadcastIcon, GearSixIcon, type Icon, SquaresFourIcon, ThermometerSimpleIcon } from '@phosphor-icons/react';
 import { type ComponentType, useEffect } from 'react';
-import { navigate, useLocation } from '../lib/router';
+import { useLoad } from '../lib/load';
+import { type Params, navigate, useLocation } from '../lib/router';
 import { endDemo, isDemo } from '../lib/session';
+import { loadSettings } from '../lib/settings';
 import { appear, iconButton } from '../lib/ui';
 import DataPage from './sensors/DataPage';
 import SensorList from './sensors/SensorList';
@@ -10,19 +12,54 @@ import Settings from './settings/Settings';
 import SourceList from './sources/SourceList';
 import SourcePage from './sources/SourcePage';
 import Summary from './summary/Summary';
+import Message from './ui/Message';
+import PageHeader from './ui/PageHeader';
 import Wordmark from './Wordmark';
 
 type Tab = 'summary' | 'sensors' | 'sources';
 
-const ROUTES: Record<string, { title: string; tab?: Tab; wide?: boolean; View: ComponentType }> = {
-  '/': { title: 'Summary', tab: 'summary', wide: true, View: Summary },
-  '/sensors/': { title: 'Sensors', tab: 'sensors', View: SensorList },
-  '/sensor/': { title: 'Sensor', tab: 'sensors', View: SensorPage },
-  '/data/': { title: 'All Recorded Data', tab: 'sensors', View: DataPage },
-  '/sources/': { title: 'Sources', tab: 'sources', View: SourceList },
-  '/source/': { title: 'Source', tab: 'sources', View: SourcePage },
-  '/settings/': { title: 'Settings', View: Settings },
+interface Route {
+  path: RegExp;
+  title: string;
+  tab?: Tab;
+  wide?: boolean;
+  View: ComponentType<{ params: Params }>;
+  // Changing only the chosen value of a sensor keeps its page.
+  page?: (params: Params) => string;
+}
+
+const ROUTES: Route[] = [
+  { path: /^\/$/, title: 'Summary', tab: 'summary', wide: true, View: Summary },
+  { path: /^\/sensors\/$/, title: 'Sensors', tab: 'sensors', View: SensorList },
+  { path: /^\/sensors\/(?<id>\d+)\/(?:(?<metric>[\w-]+)\/)?$/, title: 'Sensor', tab: 'sensors', View: SensorPage, page: ({ id }) => `sensor:${id}` },
+  { path: /^\/sensors\/(?<id>\d+)\/(?<metric>[\w-]+)\/data\/(?:(?<date>\d{4}-\d{2}-\d{2})\/)?$/, title: 'All Recorded Data', tab: 'sensors', View: DataPage },
+  { path: /^\/sources\/$/, title: 'Sources', tab: 'sources', View: SourceList },
+  { path: /^\/sources\/(?<id>\d+)\/$/, title: 'Source', tab: 'sources', View: SourcePage },
+  { path: /^\/settings\/$/, title: 'Settings', View: Settings },
+];
+
+const withSlash = (pathname: string) => (pathname.endsWith('/') ? pathname : `${pathname}/`);
+
+const findRoute = (pathname: string) => {
+  for (const route of ROUTES) {
+    const match = withSlash(pathname).match(route.path);
+
+    if (match) {
+      return { route, params: { ...match.groups } as Params };
+    }
+  }
+
+  return null;
 };
+
+function NotFound() {
+  return (
+    <>
+      <PageHeader title="Page not found" />
+      <p className="text-[17px] text-muted">This page doesn't exist.</p>
+    </>
+  );
+}
 
 const TABS: { id: Tab; label: string; href: string; Icon: Icon }[] = [
   { id: 'summary', label: 'Summary', href: '/', Icon: SquaresFourIcon },
@@ -58,10 +95,14 @@ function Tabs({ current, bottom = false }: { current?: Tab; bottom?: boolean }) 
 export default function App() {
   const path = useLocation();
   const { pathname } = new URL(path, location.origin);
-  const route = ROUTES[pathname] ?? ROUTES['/'];
+  const found = findRoute(pathname);
+  const route = found?.route;
+  const params = found?.params ?? {};
+  // Dates follow the account's time zone, so pages wait for the settings.
+  const settings = useLoad(loadSettings);
 
   useEffect(() => {
-    document.title = `${route.title} · Lyra`;
+    document.title = `${route?.title ?? 'Not found'} · Lyra`;
   }, [route]);
 
   useEffect(() => {
@@ -74,7 +115,7 @@ export default function App() {
 
       const url = new URL(link.href);
 
-      if (url.origin === location.origin && url.pathname in ROUTES) {
+      if (url.origin === location.origin && findRoute(url.pathname)) {
         event.preventDefault();
 
         if (url.pathname + url.search !== location.pathname + location.search) {
@@ -91,7 +132,7 @@ export default function App() {
     <>
       {isDemo() && (
         <div className="bg-accent px-4 py-1.5 text-center text-[13px] font-semibold text-white dark:text-navy-950">
-          Demo with sample data. Changes are gone when you reload.{' '}
+          Demo with sample data. Changes are gone upon reload.{' '}
           <a href="/login/" onClick={endDemo} className="underline underline-offset-2">
             Exit demo
           </a>
@@ -102,7 +143,7 @@ export default function App() {
           <a href="/" className="rounded-md" aria-label="Summary">
             <Wordmark className="h-5 w-auto" />
           </a>
-          <Tabs current={route.tab} />
+          <Tabs current={route?.tab} />
           <a
             href="/settings/"
             className={`${iconButton} aria-[current=page]:bg-fill aria-[current=page]:text-accent`}
@@ -113,10 +154,10 @@ export default function App() {
           </a>
         </div>
       </header>
-      <main key={path} className={`mx-auto w-full px-4 pt-4 pb-32 sm:px-6 sm:pt-6 md:pb-16 ${appear} ${route.wide ? 'max-w-4xl' : 'max-w-3xl'}`}>
-        <route.View />
+      <main key={route?.page?.(params) ?? path} className={`mx-auto w-full px-4 pt-4 pb-32 sm:px-6 sm:pt-6 md:pb-16 ${appear} ${route?.wide ? 'max-w-4xl' : 'max-w-3xl'}`}>
+        {!route ? <NotFound /> : settings.data ? <route.View params={params} /> : <Message error={settings.error} loading />}
       </main>
-      <Tabs current={route.tab} bottom />
+      <Tabs current={route?.tab} bottom />
     </>
   );
 }

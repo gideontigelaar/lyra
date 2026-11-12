@@ -68,14 +68,23 @@ export interface Point {
 
 export type Card =
   | { type: 'metric'; size: 'small' | 'large'; sensor: number; metric: string }
-  | { type: 'sensor'; size: 'small' | 'large'; sensor: number; metric: null }
+  | { type: 'sensor'; size: 'small' | 'large'; sensor: number; metric: null; metrics: string[] }
   | { type: 'combined'; size: 'small' | 'large'; sensor: null; metric: string; sensors: number[] }
-  | { type: 'batteries'; size: 'small' | 'large'; sensor: null; metric: null };
+  | { type: 'batteries'; size: 'small' | 'large'; sensor: null; metric: null; sensors: number[] };
 
 export interface Passkey {
   id: number;
   name: string;
   created_at: string;
   last_used_at: string | null;
+  current: boolean;
+}
+
+export interface Session {
+  id: number;
+  user_agent: string | null;
+  passkey: string;
+  created_at: string;
+  last_used_at: string;
   current: boolean;
 }

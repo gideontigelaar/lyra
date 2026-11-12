@@ -3,14 +3,15 @@ import { type CSSProperties, useState } from 'react';
 import { api } from '../../lib/api';
 import { cardKey } from '../../lib/cards';
 import { clockTime, formatNumber, intervalText, unitText } from '../../lib/format';
-import { failure, param, useLoad } from '../../lib/load';
+import { failure, useLoad } from '../../lib/load';
 import { dataMetrics, detailMetrics, metricStyle, sortMetrics } from '../../lib/metrics';
+import { dataPath, sensorPath } from '../../lib/paths';
 import { loadPins, togglePin } from '../../lib/pins';
-import { navigate } from '../../lib/router';
+import { type Params, navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh, isOnline } from '../../lib/status';
 import type { Card, Device, Option } from '../../lib/types';
-import { card as cardClass, pressable, row } from '../../lib/ui';
+import { card as cardClass, inlineSelect, pressable, row } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import MetricValue from '../MetricValue';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -23,10 +24,8 @@ import TextDialog from '../ui/TextDialog';
 import MetricChart from './MetricChart';
 
 const INTERVALS = [300, 900, 1800, 3600, 21600, 86400];
-const SELECT = 'max-w-40 truncate rounded-lg bg-transparent py-1 text-right text-[17px] text-muted outline-none focus-visible:ring-2 focus-visible:ring-accent';
-
-export default function SensorPage() {
-  const id = Number(param('id'));
+export default function SensorPage({ params }: { params: Params }) {
+  const id = Number(params.id);
   const { data, error, reload } = useLoad(async () => {
     const [sensors, { devices }, { decoders }, { sinks }] = await Promise.all([
       loadSensors(),
@@ -37,7 +36,7 @@ export default function SensorPage() {
     return { sensors, devices, decoders, sinks, pins: await loadPins(sensors) };
   });
   const [pins, setPins] = useState<Card[] | null>(null);
-  const [chosen, setChosen] = useState(() => param('metric'));
+  const [chosen, setChosen] = useState(params.metric);
   const [copied, setCopied] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [removing, setRemoving] = useState(false);
@@ -103,17 +102,21 @@ export default function SensorPage() {
 
   // Up to 3 tiles side by side, then rows of 2 or 3 where the last row stretches, so no tile sits alone next to a gap.
   const perRow = values.length <= 3 ? values.length : values.length === 4 ? 2 : 3;
+  const narrow = perRow > 2;
 
-  const copyAddress = () => {
-    navigator.clipboard.writeText(sensor.address).then(() => {
+  const copyAddress = async () => {
+    try {
+      await navigator.clipboard.writeText(sensor.address);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    } catch {
+      // Without clipboard access the address stays on screen to copy by hand.
+    }
   };
 
   const choose = (name: string) => {
     setChosen(name);
-    history.replaceState(null, '', `?id=${id}&metric=${name}`);
+    history.replaceState(null, '', sensorPath(id, name));
   };
 
   return (
@@ -132,12 +135,12 @@ export default function SensorPage() {
                   aria-pressed={metric === shown}
                   onClick={() => choose(metric.name)}
                   style={{ '--tw-ring-color': style.color, flexBasis: `calc(${100 / perRow}% - ${((perRow - 1) * 0.75) / perRow}rem)` } as CSSProperties}
-                  className={`${cardClass} ${pressable} flex min-w-0 grow flex-col gap-3 p-3 text-left aria-pressed:ring-2 sm:p-4`}
+                  className={`${cardClass} ${pressable} flex min-w-0 grow flex-col gap-3 p-3 text-left aria-pressed:ring-2 sm:p-4 ${narrow ? 'max-sm:px-2.5' : ''}`}
                 >
-                  <span className="flex w-full items-center gap-2">
+                  <span className={`flex w-full items-center gap-2 ${narrow ? 'max-sm:flex-col max-sm:items-start max-sm:gap-1.5' : ''}`}>
                     <MetricChip metric={metric.name} small />
-                    <span className="truncate text-[15px] font-semibold">{style.label}</span>
-                    {metric.latest && <span className={`ml-auto shrink-0 text-[13px] text-muted ${perRow > 2 ? 'max-sm:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
+                    <span className={`max-w-full truncate text-[15px] font-semibold ${narrow ? 'max-sm:text-[13px] max-sm:tracking-tight' : ''}`}>{style.label}</span>
+                    {metric.latest && <span className={`ml-auto shrink-0 text-[13px] text-muted ${narrow ? 'max-md:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
                   </span>
                   <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} />
                 </button>
@@ -152,7 +155,7 @@ export default function SensorPage() {
               label="Pin to Summary"
               trailing={<Switch label="Pin to Summary" checked={pinned} onChange={() => card && run(async () => setPins(await togglePin(data.sensors, currentPins, card)))} />}
             />
-            <Row label="Show All Data" href={`/data/?sensor=${id}&metric=${shown.name}`} />
+            <Row label="Show All Data" href={dataPath(id, shown.name)} />
           </Section>
         </>
       ) : (
@@ -169,7 +172,7 @@ export default function SensorPage() {
                   <>
                     <select
                       aria-label={`${metricStyle(metric.name).label} interval`}
-                      className={SELECT}
+                      className={inlineSelect}
                       value={metric.interval}
                       disabled={!metric.active}
                       onChange={(event) => update({ metrics: { [metric.name]: { interval: Number(event.target.value) } } })}
@@ -211,7 +214,7 @@ export default function SensorPage() {
           <Row
             label="Source"
             trailing={
-              <select aria-label="Source" className={SELECT} value={sensor.device ?? ''} onChange={(event) => update({ device: event.target.value ? Number(event.target.value) : null })}>
+              <select aria-label="Source" className={inlineSelect} value={sensor.device ?? ''} onChange={(event) => update({ device: event.target.value ? Number(event.target.value) : null })}>
                 <option value="">None</option>
                 {data.devices.map((item) => (
                   <option key={item.id} value={item.id}>

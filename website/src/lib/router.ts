@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
+export type Params = Partial<Record<string, string>>;
+
 const listeners = new Set<() => void>();
 
 const subscribe = (listener: () => void) => {
