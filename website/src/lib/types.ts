@@ -49,6 +49,11 @@ export interface Point {
   avg: number;
 }
 
+export type Card =
+  | { type: 'metric'; size: 'small' | 'large'; sensor: number; metric: string; graph: boolean }
+  | { type: 'sensor'; size: 'small' | 'large'; sensor: number; metric: null; graph: boolean }
+  | { type: 'batteries'; size: 'small' | 'large'; sensor: null; metric: null };
+
 export interface Passkey {
   id: number;
   name: string;

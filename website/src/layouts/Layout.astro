@@ -9,9 +9,10 @@ interface Props {
   title?: string;
   tab?: 'summary' | 'sensors' | 'sources';
   app?: boolean;
+  wide?: boolean;
 }
 
-const { title, tab, app = false } = Astro.props;
+const { title, tab, app = false, wide = false } = Astro.props;
 const settings = Astro.url.pathname === '/settings/';
 ---
 
@@ -61,7 +62,7 @@ const settings = Astro.url.pathname === '/settings/';
         </header>
       )
     }
-    <main class:list={['mx-auto w-full max-w-3xl px-4 sm:px-6', app ? 'pt-6 pb-32 md:pb-16' : 'flex min-h-dvh flex-col justify-center py-10']}>
+    <main class:list={['mx-auto w-full px-4 sm:px-6', wide ? 'max-w-4xl' : 'max-w-3xl', app ? 'pt-6 pb-32 md:pb-16' : 'flex min-h-dvh flex-col justify-center py-10']}>
       <slot />
     </main>
     {app && <TabBar current={tab} variant="bottom" />}

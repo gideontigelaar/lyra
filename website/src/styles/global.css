@@ -24,6 +24,16 @@
   --color-navy-800: oklch(0.27 0.055 265);
   --color-navy-900: oklch(0.205 0.045 265);
   --color-navy-950: oklch(0.16 0.038 265);
+  --animate-wiggle: wiggle 0.3s ease-in-out infinite alternate;
+
+  @keyframes wiggle {
+    from {
+      rotate: -0.6deg;
+    }
+    to {
+      rotate: 0.6deg;
+    }
+  }
 }
 
 :root {
@@ -41,6 +51,7 @@
   --metric-voltage: #6250d6;
   --metric-other: var(--color-navy-500);
   --status-good: #0a7f0a;
+  --status-warning: #9a5a00;
 }
 
 :root.dark {
@@ -57,6 +68,7 @@
   --metric-battery: #2bb67c;
   --metric-voltage: #9085e9;
   --status-good: #3fbf3f;
+  --status-warning: #f5b031;
 }
 
 @media (prefers-reduced-motion: reduce) {

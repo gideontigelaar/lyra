@@ -1,12 +1,14 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useState } from 'react';
 import { api } from '../../lib/api';
+import { cardKey } from '../../lib/cards';
 import { clockTime, formatNumber, intervalText, unitText } from '../../lib/format';
 import { failure, param, useLoad } from '../../lib/load';
 import { dataMetrics, detailMetrics, metricStyle, sortMetrics } from '../../lib/metrics';
+import { loadPins, togglePin } from '../../lib/pins';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh, isOnline } from '../../lib/status';
-import type { Device, Option } from '../../lib/types';
+import type { Card, Device, Option } from '../../lib/types';
 import { card as cardClass, disclosure, pressable } from '../../lib/ui';
 import MetricValue from '../MetricValue';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -29,8 +31,9 @@ export default function SensorPage() {
       api<{ decoders: Option[] }>('/decoders'),
       api<{ sinks: Option[] }>('/sinks'),
     ]);
-    return { sensors, devices, decoders, sinks };
+    return { sensors, devices, decoders, sinks, pins: await loadPins(sensors) };
   });
+  const [pins, setPins] = useState<Card[] | null>(null);
   const [chosen, setChosen] = useState(() => param('metric'));
   const [settingsOpen, setSettingsOpen] = useState<boolean | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -74,6 +77,9 @@ export default function SensorPage() {
   const metrics = sortMetrics(sensor.metrics);
   const values = dataMetrics(metrics);
   const shown = values.find((metric) => metric.name === chosen) ?? values[0];
+  const currentPins = pins ?? data.pins;
+  const card: Card | null = shown ? { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true } : null;
+  const pinned = card !== null && currentPins.some((item) => cardKey(item) === cardKey(card));
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
   const now = Date.now();
   let status: string | undefined;
@@ -129,6 +135,10 @@ export default function SensorPage() {
             <MetricChart sensor={id} metric={shown} />
           </div>
           <Section title={metricStyle(shown.name).label}>
+            <Row
+              label="Pin to Summary"
+              trailing={<Switch label="Pin to Summary" checked={pinned} onChange={() => card && run(async () => setPins(await togglePin(data.sensors, currentPins, card)))} />}
+            />
             <Row label="Show All Data" href={`/data/?sensor=${id}&metric=${shown.name}`} />
           </Section>
         </>

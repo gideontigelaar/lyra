@@ -60,6 +60,7 @@ const sensors = [
 ];
 
 const deleted = new Map();
+let dashboard = null;
 let passkeys = [
   { id: 1, name: 'MacBook', created_at: iso(now() - 40 * DAY), last_used_at: iso(now() - 2 * HOUR), current: true },
   { id: 2, name: 'iPhone', created_at: iso(now() - 12 * DAY), last_used_at: null, current: false },
@@ -256,6 +257,15 @@ const routes = {
   'GET /sinks': () => ({ sinks: [{ name: 'lyra', label: 'Lyra' }] }),
   'GET /readings': listReadings,
   'DELETE /readings': deleteReadings,
+  'GET /dashboard': () => ({ cards: dashboard }),
+  'PUT /dashboard': ({ body }) => {
+    dashboard = body.cards;
+    return { cards: dashboard };
+  },
+  'DELETE /dashboard': () => {
+    dashboard = null;
+    return null;
+  },
   'GET /passkeys': () => ({ passkeys }),
   'POST /passkeys/options': () => ({
     rp: { name: 'Lyra', id: 'localhost' },

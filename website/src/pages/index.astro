@@ -1,7 +1,8 @@
 ---
+import Summary from '../components/summary/Summary';
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="Summary" tab="summary" app>
-  <h1 class="text-[34px] font-bold tracking-tight">Summary</h1>
+<Layout title="Summary" tab="summary" app wide>
+  <Summary client:only="react" />
 </Layout>

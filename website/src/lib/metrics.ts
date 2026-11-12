@@ -44,7 +44,9 @@ export const detailMetrics = <T extends { name: string }>(metrics: T[]) => withR
 
 const battery = (sensor: Sensor) => sensor.metrics.find((metric) => metric.name === 'battery' && metric.active);
 
-const batteryLevel = (sensor: Sensor) => battery(sensor)?.latest?.value ?? null;
+export const hasBattery = (sensor: Sensor) => battery(sensor) !== undefined;
+
+export const batteryLevel = (sensor: Sensor) => battery(sensor)?.latest?.value ?? null;
 
 export const lowBattery = (sensor: Sensor) => {
   const level = batteryLevel(sensor);
