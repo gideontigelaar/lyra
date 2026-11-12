@@ -13,7 +13,7 @@ npm install
 npm run dev
 ```
 
-The dev server answers API requests with sample data from `mock/api.mjs`, so it works without signing in.
+The dev server uses the demo's sample data from `src/lib/demo.ts`, so it works without signing in. The same data is behind "Try the demo" on the sign-in page.
 
 Check the types:
 ```bash

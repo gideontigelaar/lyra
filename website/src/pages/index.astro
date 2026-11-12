@@ -1,8 +1,8 @@
 ---
-import Summary from '../components/summary/Summary';
+import App from '../components/App';
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="Summary" tab="summary" app wide>
-  <Summary client:only="react" />
+<Layout title="Summary" app>
+  <App client:only="react" />
 </Layout>

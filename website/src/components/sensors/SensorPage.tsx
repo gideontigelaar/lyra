@@ -1,4 +1,3 @@
-import { CaretRightIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useState } from 'react';
 import { api } from '../../lib/api';
 import { cardKey } from '../../lib/cards';
@@ -6,12 +5,14 @@ import { clockTime, formatNumber, intervalText, unitText } from '../../lib/forma
 import { failure, param, useLoad } from '../../lib/load';
 import { dataMetrics, detailMetrics, metricStyle, sortMetrics } from '../../lib/metrics';
 import { loadPins, togglePin } from '../../lib/pins';
+import { navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh, isOnline } from '../../lib/status';
 import type { Card, Device, Option } from '../../lib/types';
-import { card as cardClass, disclosure, pressable } from '../../lib/ui';
+import { card as cardClass, pressable } from '../../lib/ui';
 import MetricValue from '../MetricValue';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import Fold from '../ui/Fold';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
@@ -35,7 +36,6 @@ export default function SensorPage() {
   });
   const [pins, setPins] = useState<Card[] | null>(null);
   const [chosen, setChosen] = useState(() => param('metric'));
-  const [settingsOpen, setSettingsOpen] = useState<boolean | null>(null);
   const [renaming, setRenaming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -145,11 +145,7 @@ export default function SensorPage() {
       ) : (
         <p className="px-1 text-[15px] text-muted">Waiting for the first reading.</p>
       )}
-      <details className="group mt-10" open={settingsOpen ?? (!shown || sensor.device === null)} onToggle={(event) => setSettingsOpen(event.currentTarget.open)}>
-        <summary className={disclosure}>
-          Settings
-          <CaretRightIcon weight="bold" className="size-4 text-muted transition-transform group-open:rotate-90" aria-hidden="true" />
-        </summary>
+      <Fold title="Settings" hint="Recording, details, remove" defaultOpen={!shown || sensor.device === null}>
         {metrics.length > 0 && (
           <Section title="Recording">
             {metrics.map((metric) => (
@@ -225,7 +221,7 @@ export default function SensorPage() {
         <Section>
           <Row label="Remove Sensor" danger onClick={() => setRemoving(true)} />
         </Section>
-      </details>
+      </Fold>
       <TextDialog
         open={renaming}
         title="Rename Sensor"
@@ -247,7 +243,7 @@ export default function SensorPage() {
           setBusy(true);
           await run(async () => {
             await api(`/sensors/${id}`, 'DELETE');
-            location.assign('/sensors/');
+            navigate('/sensors/');
           });
           setBusy(false);
         }}

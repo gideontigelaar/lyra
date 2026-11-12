@@ -1,6 +1,6 @@
 ---
 import KeyIcon from '@phosphor-icons/core/assets/fill/key-fill.svg';
-import Wordmark from '../components/Wordmark.astro';
+import Wordmark from '../components/Wordmark';
 import Layout from '../layouts/Layout.astro';
 import { card, input, label, primaryButton } from '../lib/ui';
 ---
@@ -8,7 +8,7 @@ import { card, input, label, primaryButton } from '../lib/ui';
 <Layout title="Set up">
   <div class="mx-auto w-full max-w-sm">
     <form class:list={[card, 'p-8']} data-setup>
-      <Wordmark class="mx-auto h-10 w-auto" />
+      <Wordmark className="mx-auto h-10 w-auto" />
       <h1 class="mt-6 text-center text-xl font-bold tracking-tight">Set up a passkey</h1>
       <p class="mt-1 text-center text-[15px] text-muted">Enter your setup code to create your first passkey.</p>
       <label for="setup-code" class:list={[label, 'mt-6']}>Setup code</label>

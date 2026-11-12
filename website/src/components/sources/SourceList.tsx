@@ -51,7 +51,7 @@ export default function SourceList() {
       <Message error={error ?? actionError} loading={!data} />
       {data &&
         (data.devices.length ? (
-          <Section footer="A source is online when Lyra heard from it in the last 15 minutes.">
+          <Section footer="A source is online when it checked in during the last 15 minutes.">
             {data.devices.map((device) => (
               <Row
                 key={device.id}

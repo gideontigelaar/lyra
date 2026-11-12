@@ -160,7 +160,7 @@ export default function SummaryCard(props: Props) {
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition, animationDelay: `${(index % 4) * -0.08}s` }}
-      className={`relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${editing && !isDragging ? 'animate-wiggle' : ''} ${isDragging ? 'z-10' : ''}`}
+      className={`relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${editing && !isDragging ? 'scale-[0.97]' : ''} transition-transform duration-300 ease-out ${isDragging ? 'z-10' : ''}`}
     >
       {editing ? (
         <div {...attributes} {...listeners} aria-label={`${name}, reorder`} className={`${surface} cursor-grab touch-none ${isDragging ? 'cursor-grabbing shadow-xl' : ''}`}>

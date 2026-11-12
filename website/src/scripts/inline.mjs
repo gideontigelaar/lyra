@@ -18,7 +18,7 @@ export const themeScript = `(() => {
 export const signInScript = `(() => {
   let signedIn = false;
   try {
-    signedIn = localStorage.getItem('signed-in') === '1';
+    signedIn = localStorage.getItem('signed-in') === '1' || sessionStorage.getItem('demo') === '1';
   } catch {}
   if (!signedIn) location.replace('/login/');
 })();`;

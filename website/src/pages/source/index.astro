@@ -1,8 +1,8 @@
 ---
-import SourcePage from '../../components/sources/SourcePage';
+import App from '../../components/App';
 import Layout from '../../layouts/Layout.astro';
 ---
 
-<Layout title="Source" tab="sources" app>
-  <SourcePage client:only="react" />
+<Layout title="Source" app>
+  <App client:only="react" />
 </Layout>

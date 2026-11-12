@@ -23,7 +23,7 @@ export const passkeyError = (error: unknown) => {
   }
 
   if (error instanceof DOMException && error.name === 'InvalidStateError') {
-    return 'This device already has a passkey for Lyra.';
+    return 'This device already has a passkey here.';
   }
 
   return error instanceof Error ? `Something went wrong: ${error.message}.` : 'Something went wrong.';

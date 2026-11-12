@@ -1,27 +1,20 @@
 ---
-import GearSixIcon from '@phosphor-icons/core/assets/fill/gear-six-fill.svg';
-import TabBar from '../components/TabBar.astro';
-import Wordmark from '../components/Wordmark.astro';
-import { iconButton } from '../lib/ui';
 import { signInScript, themeScript } from '../scripts/inline.mjs';
 import '../styles/global.css';
 
 interface Props {
   title?: string;
-  tab?: 'summary' | 'sensors' | 'sources';
   app?: boolean;
-  wide?: boolean;
 }
 
-const { title, tab, app = false, wide = false } = Astro.props;
-const settings = Astro.url.pathname === '/settings/';
+const { title, app = false } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" class="has-[dialog[open]]:overflow-hidden">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="robots" content="noindex" />
     <meta name="theme-color" content="#eef1f8" />
     <meta name="color-scheme" content="light dark" />
@@ -32,25 +25,15 @@ const settings = Astro.url.pathname === '/settings/';
     <script is:inline set:html={themeScript} />
     {app && !import.meta.env.DEV && <script is:inline set:html={signInScript} />}
   </head>
-  <body class="min-h-dvh bg-bg text-navy-950 antialiased dark:text-navy-50">
+  <body class="min-h-dvh bg-bg text-navy-950 antialiased transition-colors duration-300 dark:text-navy-50">
     {
-      app && (
-        <header class="sticky top-0 z-20 border-b border-line/60 bg-bg/80 backdrop-blur-xl">
-          <div class="mx-auto flex h-14 max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
-            <a href="/" class="rounded-md" aria-label="Lyra summary">
-              <Wordmark class="h-5 w-auto" />
-            </a>
-            <TabBar current={tab} variant="top" />
-            <a href="/settings/" class={iconButton} aria-label="Settings" aria-current={settings ? 'page' : undefined}>
-              <GearSixIcon class="size-6" aria-hidden="true" />
-            </a>
-          </div>
-        </header>
+      app ? (
+        <slot />
+      ) : (
+        <main class="mx-auto flex min-h-dvh w-full max-w-3xl flex-col justify-center px-4 py-10 sm:px-6">
+          <slot />
+        </main>
       )
     }
-    <main class:list={['mx-auto w-full px-4 sm:px-6', wide ? 'max-w-4xl' : 'max-w-3xl', app ? 'pt-6 pb-32 md:pb-16' : 'flex min-h-dvh flex-col justify-center py-10']}>
-      <slot />
-    </main>
-    {app && <TabBar current={tab} variant="bottom" />}
   </body>
 </html>

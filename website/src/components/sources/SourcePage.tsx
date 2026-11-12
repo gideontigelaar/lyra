@@ -2,6 +2,7 @@ import { CheckCircleIcon, CircleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { failure, param, useLoad } from '../../lib/load';
+import { navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import type { Device } from '../../lib/types';
 import { group, pressable, primaryButton, row } from '../../lib/ui';
@@ -64,7 +65,7 @@ export default function SourcePage() {
         ))}
         <Row label={<span className="text-accent">Choose Sensors…</span>} onClick={() => setDialog('assign')} />
       </Section>
-      <Section title="Options" footer="When Active is off, Lyra rejects everything this source sends. Its key and sensors are kept.">
+      <Section title="Options" footer="While Active is off, everything this source sends is rejected. Its key and sensors are kept.">
         <Row label="Active" trailing={<Switch label="Active" checked={device.active} onChange={(active) => run(() => api(`/devices/${id}`, 'PATCH', { active }))} />} />
         <Row label="Name" detail={device.name} onClick={() => setDialog('rename')} />
         <Row label="Replace Key" onClick={() => setDialog('key')} />
@@ -135,7 +136,7 @@ export default function SourcePage() {
         onConfirm={() =>
           run(async () => {
             await api(`/devices/${id}`, 'DELETE');
-            location.assign('/sources/');
+            navigate('/sources/');
           })
         }
       >

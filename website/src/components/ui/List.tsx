@@ -1,6 +1,6 @@
 import { CaretRightIcon } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
-import { group, pressable, row } from '../../lib/ui';
+import { group, pressable, row, sectionTitle } from '../../lib/ui';
 
 interface SectionProps {
   title?: string;
@@ -11,10 +11,10 @@ interface SectionProps {
 
 export function Section({ title, action, footer, children }: SectionProps) {
   return (
-    <section className="mt-8 first:mt-0">
+    <section className="mt-6 first:mt-0">
       {(title || action) && (
         <div className="mb-2 flex items-end justify-between gap-3 px-1">
-          {title && <h2 className="text-[22px] font-bold tracking-tight">{title}</h2>}
+          {title && <h2 className={sectionTitle}>{title}</h2>}
           {action}
         </div>
       )}

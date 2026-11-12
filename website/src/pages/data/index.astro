@@ -1,8 +1,8 @@
 ---
-import DataPage from '../../components/sensors/DataPage';
+import App from '../../components/App';
 import Layout from '../../layouts/Layout.astro';
 ---
 
-<Layout title="All Recorded Data" tab="sensors" app>
-  <DataPage client:only="react" />
+<Layout title="All Recorded Data" app>
+  <App client:only="react" />
 </Layout>

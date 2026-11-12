@@ -1,6 +1,7 @@
 import { type SubmitEvent, useId, useState } from 'react';
 import { api } from '../../lib/api';
 import { failure } from '../../lib/load';
+import { navigate } from '../../lib/router';
 import type { Device, Option } from '../../lib/types';
 import { input, label, primaryButton, secondaryButton } from '../../lib/ui';
 import Dialog from '../ui/Dialog';
@@ -32,7 +33,7 @@ function Form({ decoders, devices, onClose }: Omit<Props, 'open'>) {
 
     try {
       const { id } = await api<{ id: number }>('/sensors', 'POST', { name: name.trim(), address: normalized, decoder, device });
-      location.assign(`/sensor/?id=${id}`);
+      navigate(`/sensor/?id=${id}`);
     } catch (e) {
       setError(failure(e));
       setBusy(false);

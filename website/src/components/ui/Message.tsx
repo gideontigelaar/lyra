@@ -12,5 +12,5 @@ export default function Message({ error, loading }: Props) {
     );
   }
 
-  return loading ? <p className="py-2 text-[15px] text-muted">Loading…</p> : null;
+  return loading ? <p className="py-2 text-[15px] text-muted transition-opacity delay-300 duration-300 starting:opacity-0">Loading…</p> : null;
 }

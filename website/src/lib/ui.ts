@@ -1,10 +1,10 @@
-export const card = 'rounded-3xl bg-surface shadow-sm shadow-navy-950/5';
+export const card = 'rounded-2xl border border-line/70 bg-surface transition duration-300 ease-out';
 
-export const group = 'overflow-hidden rounded-2xl bg-surface shadow-sm shadow-navy-950/5';
+export const group = 'overflow-hidden rounded-2xl border border-line/70 bg-surface transition-colors duration-300';
 
 export const row = 'flex min-h-12 w-full items-center gap-3 px-4 py-2.5 text-left';
 
-export const pressable = 'transition-colors hover:bg-fill/60 active:bg-fill focus-visible:bg-fill/60 focus-visible:outline-none';
+export const pressable = 'transition duration-200 ease-out hover:bg-fill/60 active:bg-fill focus-visible:bg-fill/60 focus-visible:outline-none';
 
 export const primaryButton =
   'inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:pointer-events-none disabled:opacity-50 dark:text-navy-950';
@@ -22,7 +22,8 @@ export const iconButton =
 
 export const input = 'w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[17px] outline-none transition-colors placeholder:text-muted focus:border-accent';
 
-export const disclosure =
-  'flex w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-1 text-[22px] font-bold tracking-tight outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden';
+export const sectionTitle = 'text-xs font-semibold tracking-wider text-muted uppercase';
+
+export const appear = 'transition duration-300 ease-out starting:translate-y-1 starting:opacity-0';
 
 export const label = 'mb-1.5 block text-sm font-semibold text-muted';

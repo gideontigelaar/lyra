@@ -1,4 +1,6 @@
-const API_URL = import.meta.env.DEV ? '/api' : 'https://api.gideontigelaar.com/lyra';
+import { isDemo } from './session';
+
+const API_URL = 'https://api.gideontigelaar.com/lyra';
 
 export class ApiError extends Error {
   constructor(
@@ -9,7 +11,12 @@ export class ApiError extends Error {
   }
 }
 
-export const api = async <T = void>(path: string, method = 'GET', body?: object): Promise<T> => {
+const request = async <T>(path: string, method: string, body?: object): Promise<T> => {
+  if (isDemo()) {
+    const { demoRequest } = await import('./demo');
+    return (await demoRequest(method, path, body)) as T;
+  }
+
   const response = await fetch(API_URL + path, {
     method,
     credentials: 'include',
@@ -23,4 +30,26 @@ export const api = async <T = void>(path: string, method = 'GET', body?: object)
   }
 
   return response.status === 204 ? (undefined as T) : response.json();
+};
+
+// Short-lived cache of reads, so moving between pages is instant. Any change clears it.
+const FRESH_MS = 15000;
+const reads = new Map<string, { time: number; data: Promise<unknown> }>();
+
+export const api = <T = void>(path: string, method = 'GET', body?: object): Promise<T> => {
+  if (method !== 'GET') {
+    reads.clear();
+    return request<T>(path, method, body);
+  }
+
+  const cached = reads.get(path);
+
+  if (cached && Date.now() - cached.time < FRESH_MS) {
+    return cached.data as Promise<T>;
+  }
+
+  const data = request<T>(path, method);
+  reads.set(path, { time: Date.now(), data });
+  data.catch(() => reads.delete(path));
+  return data;
 };

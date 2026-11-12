@@ -1,19 +1,20 @@
 ---
 import KeyIcon from '@phosphor-icons/core/assets/fill/key-fill.svg';
-import Wordmark from '../components/Wordmark.astro';
+import Wordmark from '../components/Wordmark';
 import Layout from '../layouts/Layout.astro';
-import { card, primaryButton } from '../lib/ui';
+import { card, primaryButton, secondaryButton } from '../lib/ui';
 ---
 
 <Layout title="Sign in">
   <div class:list={[card, 'mx-auto w-full max-w-sm p-8 text-center']}>
-    <h1 class="sr-only">Sign in to Lyra</h1>
-    <Wordmark class="mx-auto h-10 w-auto" />
+    <h1 class="sr-only">Sign in</h1>
+    <Wordmark className="mx-auto h-10 w-auto" />
     <button type="button" class:list={[primaryButton, 'mt-8 w-full py-3 text-[17px]']} data-sign-in>
       <KeyIcon class="size-5" aria-hidden="true" />
       Sign in with a passkey
     </button>
     <p class="mt-3 text-[15px] text-danger" role="alert" hidden data-error></p>
+    <button type="button" class:list={[secondaryButton, 'mt-3 w-full py-3 text-[17px]']} data-demo>Try the demo</button>
     <p class="mt-6 text-[15px] text-muted" hidden data-setup>First time here? <a href="/setup/" class="font-semibold text-accent">Use a setup code</a></p>
   </div>
 </Layout>
@@ -21,7 +22,7 @@ import { card, primaryButton } from '../lib/ui';
 <script>
   import { ApiError, api } from '../lib/api';
   import { passkeyError, passkeysSupported, signIn } from '../lib/passkeys';
-  import { rememberSignIn } from '../lib/session';
+  import { endDemo, rememberSignIn, startDemo } from '../lib/session';
 
   const button = document.querySelector<HTMLButtonElement>('[data-sign-in]')!;
   const error = document.querySelector<HTMLElement>('[data-error]')!;
@@ -42,12 +43,18 @@ import { card, primaryButton } from '../lib/ui';
     showError('This browser is too old for passkey sign-in. Update it or use another browser.');
   }
 
+  document.querySelector('[data-demo]')!.addEventListener('click', () => {
+    startDemo();
+    location.assign('/');
+  });
+
   button.addEventListener('click', async () => {
     button.disabled = true;
     error.hidden = true;
 
     try {
       await signIn();
+      endDemo();
       rememberSignIn();
       location.assign('/');
     } catch (e) {

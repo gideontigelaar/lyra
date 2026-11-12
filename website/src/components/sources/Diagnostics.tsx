@@ -1,7 +1,6 @@
-import { CaretRightIcon } from '@phosphor-icons/react';
 import { formatNumber, timeAgo } from '../../lib/format';
 import type { Device } from '../../lib/types';
-import { disclosure } from '../../lib/ui';
+import Fold from '../ui/Fold';
 import { Row, Section } from '../ui/List';
 
 interface Props {
@@ -61,11 +60,7 @@ export default function Diagnostics({ device, temperature, now }: Props) {
     : [];
 
   return (
-    <details className="group mt-10">
-      <summary className={disclosure}>
-        Diagnostics
-        <CaretRightIcon weight="bold" className="size-4 text-muted transition-transform group-open:rotate-90" aria-hidden="true" />
-      </summary>
+    <Fold title="Diagnostics" hint="Uptime, restarts, Wi-Fi, memory">
       <Section footer="The source reports this every 5 minutes.">
         {telemetry ? (
           rows.filter(([, value]) => value !== undefined).map(([label, value]) => <Row key={label} label={label} detail={value} />)
@@ -73,6 +68,6 @@ export default function Diagnostics({ device, temperature, now }: Props) {
           <Row label={<span className="text-muted">No reports yet</span>} />
         )}
       </Section>
-    </details>
+    </Fold>
   );
 }
