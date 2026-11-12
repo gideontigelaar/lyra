@@ -13,6 +13,8 @@ npm install
 npm run dev
 ```
 
+The dev server answers API requests with sample data from `mock/api.mjs`, so it works without signing in.
+
 Check the types:
 ```bash
 npm run check
@@ -29,5 +31,6 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 
 ## Notes
 - The site is static. `public/.htaccess` sets its caching and security headers, and Astro adds a Content-Security-Policy to every page.
+- Signing in only works with passkeys, on the live site. The first passkey is created with a setup code, see the [API README](../api/README.md). More can be added in Settings. The last passkey can't be removed, and removing the one you signed in with signs you out.
 - The wordmark is the word Lyra in Bricolage Grotesque, converted to outlines, so no font is loaded. Text uses the system font.
 - Search engines are asked not to index it.

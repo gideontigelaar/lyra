@@ -1,0 +1,50 @@
+---
+import KeyIcon from '@phosphor-icons/core/assets/fill/key-fill.svg';
+import Wordmark from '../components/Wordmark.astro';
+import Layout from '../layouts/Layout.astro';
+import { card, primaryButton } from '../lib/ui';
+---
+
+<Layout title="Sign in">
+  <div class:list={[card, 'mx-auto w-full max-w-sm p-8 text-center']}>
+    <h1 class="sr-only">Sign in to Lyra</h1>
+    <Wordmark class="mx-auto h-10 w-auto" />
+    <button type="button" class:list={[primaryButton, 'mt-8 w-full py-3 text-[17px]']} data-sign-in>
+      <KeyIcon class="size-5" aria-hidden="true" />
+      Sign in with a passkey
+    </button>
+    <p class="mt-3 text-[15px] text-danger" role="alert" hidden data-error></p>
+    <p class="mt-6 text-[15px] text-muted">First time here? <a href="/setup/" class="font-semibold text-accent">Use a setup code</a></p>
+  </div>
+</Layout>
+
+<script>
+  import { ApiError } from '../lib/api';
+  import { passkeyError, passkeysSupported, signIn } from '../lib/passkeys';
+
+  const button = document.querySelector<HTMLButtonElement>('[data-sign-in]')!;
+  const error = document.querySelector<HTMLElement>('[data-error]')!;
+
+  const showError = (message: string) => {
+    error.textContent = message;
+    error.hidden = false;
+  };
+
+  if (!passkeysSupported()) {
+    button.disabled = true;
+    showError('This browser is too old for passkey sign-in. Update it or use another browser.');
+  }
+
+  button.addEventListener('click', async () => {
+    button.disabled = true;
+    error.hidden = true;
+
+    try {
+      await signIn();
+      location.assign('/');
+    } catch (e) {
+      showError(e instanceof ApiError && e.status === 401 ? "This passkey isn't registered for Lyra." : passkeyError(e));
+      button.disabled = false;
+    }
+  });
+</script>

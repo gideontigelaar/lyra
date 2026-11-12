@@ -1,5 +1,7 @@
 ---
+import GearSixIcon from '@phosphor-icons/core/assets/fill/gear-six-fill.svg';
 import Wordmark from '../components/Wordmark.astro';
+import { iconButton } from '../lib/ui';
 import '../styles/global.css';
 
 interface Props {
@@ -8,6 +10,7 @@ interface Props {
 }
 
 const { title, app = false } = Astro.props;
+const settings = Astro.url.pathname === '/settings/';
 ---
 
 <!doctype html>
@@ -26,11 +29,17 @@ const { title, app = false } = Astro.props;
       (() => {
         const media = window.matchMedia('(prefers-color-scheme: dark)');
         const apply = () => {
-          document.documentElement.classList.toggle('dark', media.matches);
-          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', media.matches ? '#060c1d' : '#eef1f8');
+          let theme = null;
+          try {
+            theme = localStorage.getItem('theme');
+          } catch {}
+          const dark = theme === 'dark' || (theme !== 'light' && media.matches);
+          document.documentElement.classList.toggle('dark', dark);
+          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#060c1d' : '#eef1f8');
         };
         apply();
         media.addEventListener('change', apply);
+        window.addEventListener('themechange', apply);
       })();
     </script>
   </head>
@@ -38,9 +47,12 @@ const { title, app = false } = Astro.props;
     {
       app && (
         <header class="sticky top-0 z-20 border-b border-line/60 bg-bg/80 backdrop-blur-xl">
-          <div class="mx-auto flex h-14 max-w-3xl items-center gap-4 px-4 sm:px-6">
+          <div class="mx-auto flex h-14 max-w-3xl items-center justify-between gap-4 px-4 sm:px-6">
             <a href="/" class="rounded-md" aria-label="Lyra summary">
               <Wordmark class="h-5 w-auto" />
+            </a>
+            <a href="/settings/" class={iconButton} aria-label="Settings" aria-current={settings ? 'page' : undefined}>
+              <GearSixIcon class="size-6" aria-hidden="true" />
             </a>
           </div>
         </header>

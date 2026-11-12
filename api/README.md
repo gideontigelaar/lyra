@@ -198,7 +198,7 @@ Store it for an hour, in `sudo mariadb lyra`:
 INSERT INTO setup_codes (code_hash, user_id, expires_at) VALUES (SHA2('SETUP_CODE', 256), (SELECT user_id FROM users WHERE name = 'USER_NAME'), CURRENT_TIMESTAMP + INTERVAL 1 HOUR);
 ```
 
-Then register the passkey with it on the website. More passkeys can be added while signed in, so a new setup code is only needed when every passkey is lost.
+Then open [lyra.gideontigelaar.com/setup](https://lyra.gideontigelaar.com/setup) and create the passkey with it. More passkeys can be added in the website's settings, so a new setup code is only needed when every passkey is lost.
 
 ## Deploying
 Run from the root of the repository:
