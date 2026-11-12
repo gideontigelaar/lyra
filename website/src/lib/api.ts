@@ -11,6 +11,11 @@ export class ApiError extends Error {
   }
 }
 
+const failed = async (response: Response) => {
+  const data = await response.json().catch(() => null);
+  return new ApiError(response.status, data?.error ?? response.statusText);
+};
+
 const request = async <T>(path: string, method: string, body?: object): Promise<T> => {
   if (isDemo()) {
     const { demoRequest } = await import('./demo');
@@ -25,11 +30,26 @@ const request = async <T>(path: string, method: string, body?: object): Promise<
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => null);
-    throw new ApiError(response.status, data?.error ?? response.statusText);
+    throw await failed(response);
   }
 
   return response.status === 204 ? (undefined as T) : response.json();
+};
+
+// A response that isn't JSON, like a backup. Never cached.
+export const apiText = async (path: string): Promise<string> => {
+  if (isDemo()) {
+    const { demoRequest } = await import('./demo');
+    return String(await demoRequest('GET', path));
+  }
+
+  const response = await fetch(API_URL + path, { credentials: 'include' });
+
+  if (!response.ok) {
+    throw await failed(response);
+  }
+
+  return response.text();
 };
 
 // Short-lived cache of reads, so moving between pages is instant. Any change clears it.

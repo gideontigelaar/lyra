@@ -5,6 +5,10 @@ declare(strict_types=1);
 const BUCKET_SECONDS = 900;
 const BUCKET_MAX_DAYS = ['raw' => 31, 'hour' => 31, 'day' => 400, 'week' => 1100, 'month' => 3700];
 const MAX_RANGES = 1000;
+const IMPORT_ROWS = 5000;
+const IMPORT_BODY_BYTES = 1048576;
+// Readings of one value this close together are the same reading, from a backup that overlaps what's stored.
+const SAME_READING_SECONDS = 60;
 
 function read_utc_time(mixed $value): ?int
 {
@@ -159,6 +163,134 @@ function delete_readings(): never
     respond(200, ['deleted' => $deleted]);
 }
 
+function read_sensor(PDO $db, mixed $sensor): int
+{
+    $stmt = $db->prepare('SELECT sensor_id FROM sensors WHERE sensor_id = ?');
+    $stmt->execute([is_int($sensor) || (is_string($sensor) && ctype_digit($sensor)) ? $sensor : 0]);
+
+    return $stmt->fetchColumn() ?: respond(404, ['error' => 'sensor not found']);
+}
+
+// Every reading of a sensor as CSV, oldest first per value, in the units they're stored in.
+function export_readings(): never
+{
+    $db = get_db();
+    require_session($db);
+    $sensor = read_sensor($db, $_GET['sensor'] ?? null);
+
+    // Rows go out as they're read, so a long history doesn't have to fit in memory.
+    $db->setAttribute(Pdo\Mysql::ATTR_USE_BUFFERED_QUERY, false);
+    $stmt = $db->prepare(
+        'SELECT r.measured_at, m.name, r.value, m.unit
+         FROM readings r
+         JOIN metrics m USING (metric_id)
+         WHERE r.sensor_id = ?
+         ORDER BY r.metric_id, r.measured_at'
+    );
+    $stmt->execute([$sensor]);
+
+    header('Content-Type: text/csv; charset=utf-8');
+    header("Content-Disposition: attachment; filename=\"sensor-$sensor.csv\"");
+    header('Cache-Control: no-store');
+    // The byte order mark tells Excel the file is UTF-8, so units like °C show right.
+    echo "\u{FEFF}time,metric,value,unit\n";
+
+    foreach ($stmt as $row) {
+        echo iso_time($row['measured_at']), ',', $row['name'], ',', $row['value'], ',', $row['unit'], "\n";
+    }
+
+    exit;
+}
+
+// Adds readings from a backup. Readings already stored, or within a minute of a stored one of the same value, are skipped.
+function import_readings(): never
+{
+    require_website_origin();
+    $db = get_db();
+    require_session($db);
+    $data = read_json(IMPORT_BODY_BYTES);
+    $sensor = read_sensor($db, $data['sensor'] ?? null);
+    $rows = $data['readings'] ?? null;
+
+    if (!is_array($rows) || !array_is_list($rows) || $rows === [] || count($rows) > IMPORT_ROWS) {
+        respond(400, ['error' => 'readings must be a list of 1 to ' . IMPORT_ROWS . ' readings']);
+    }
+
+    $metrics = [];
+
+    foreach ($db->query('SELECT name, metric_id, unit, default_interval FROM metrics') as $metric) {
+        $metrics[$metric['name']] = $metric;
+    }
+
+    // Each reading is [metric, time, value] or [metric, time, value, unit]. Unknown values, other units and times in the future don't count.
+    $valid = [];
+    $invalid = 0;
+    $latest = time() + 300;
+
+    foreach ($rows as $row) {
+        [$name, $time, $value, $unit] = is_array($row) && array_is_list($row) ? $row + [null, null, null, null] : [null, null, null, null];
+        $metric = is_string($name) ? $metrics[$name] ?? null : null;
+        $time = read_utc_time($time);
+
+        if ($metric === null || $time === null || $time > $latest || !(is_int($value) || is_float($value)) || ($unit !== null && $unit !== $metric['unit'])) {
+            $invalid++;
+            continue;
+        }
+
+        $valid[$metric['metric_id']][$time] = (float) $value;
+    }
+
+    $discover = $db->prepare('INSERT IGNORE INTO sensor_metrics (sensor_id, metric_id, report_interval) VALUES (?, ?, ?)');
+    $stored = $db->prepare(
+        'SELECT UNIX_TIMESTAMP(measured_at) FROM readings
+         WHERE sensor_id = ? AND metric_id = ? AND measured_at BETWEEN FROM_UNIXTIME(?) AND FROM_UNIXTIME(?)
+         ORDER BY measured_at'
+    );
+    $intervals = array_column($metrics, 'default_interval', 'metric_id');
+    $added = 0;
+    $skipped = 0;
+    $db->beginTransaction();
+
+    foreach ($valid as $metric_id => $readings) {
+        ksort($readings);
+        $times = array_keys($readings);
+        $discover->execute([$sensor, $metric_id, $intervals[$metric_id]]);
+        $stored->execute([$sensor, $metric_id, $times[0] - SAME_READING_SECONDS, end($times) + SAME_READING_SECONDS]);
+        $existing = array_map('intval', $stored->fetchAll(PDO::FETCH_COLUMN));
+        $next = 0;
+        $last = null;
+        $new = [];
+
+        // Both lists are in time order, so one pass finds each reading's nearest stored neighbours.
+        foreach ($readings as $time => $value) {
+            while (isset($existing[$next]) && $existing[$next] < $time - SAME_READING_SECONDS) {
+                $next++;
+            }
+
+            $taken = isset($existing[$next]) && $existing[$next] <= $time + SAME_READING_SECONDS;
+
+            if ($taken || ($last !== null && $time - $last <= SAME_READING_SECONDS)) {
+                $skipped++;
+                continue;
+            }
+
+            $new[] = [$sensor, $metric_id, $value, $time];
+            $last = $time;
+        }
+
+        foreach (array_chunk($new, 500) as $chunk) {
+            $db->prepare('INSERT INTO readings (sensor_id, metric_id, value, measured_at) VALUES ' . implode(', ', array_fill(0, count($chunk), '(?, ?, ?, FROM_UNIXTIME(?))')))
+                ->execute(array_merge(...$chunk));
+            $added += count($chunk);
+        }
+    }
+
+    $db->commit();
+    respond(200, ['added' => $added, 'skipped' => $skipped, 'invalid' => $invalid]);
+}
+
 return [
     '/readings' => ['GET' => 'list_readings', 'DELETE' => 'delete_readings'],
+    '/readings/export' => ['GET' => 'export_readings'],
+    '/readings/import' => ['POST' => 'import_readings'],
 ];

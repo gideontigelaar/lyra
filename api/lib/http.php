@@ -49,9 +49,9 @@ function iso_time(?string $timestamp): ?string
     return $timestamp === null ? null : str_replace(' ', 'T', $timestamp) . 'Z';
 }
 
-function read_json(): array
+function read_json(int $limit = MAX_BODY_BYTES): array
 {
-    $input = file_get_contents('php://input', length: MAX_BODY_BYTES);
+    $input = file_get_contents('php://input', length: $limit);
 
     try {
         $data = json_decode($input, true, 8, JSON_THROW_ON_ERROR);

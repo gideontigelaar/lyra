@@ -106,6 +106,8 @@ const sensors: DemoSensor[] = [
 ];
 
 const deleted = new Map<string, { from: number; to: number }[]>();
+// Readings added from a backup, per sensor and value.
+const imported = new Map<string, { time: number; value: number }[]>();
 let dashboard: unknown = [
   { type: 'combined', size: 'large', sensor: null, metric: 'temperature', sensors: [2, 3] },
   { type: 'sensor', size: 'large', sensor: 1, metric: null },
@@ -260,7 +262,8 @@ const readings = (sensor: DemoSensor, item: DemoMetric, from: number, to: number
     }
   }
 
-  return list;
+  const extra = (imported.get(`${sensor.id}:${item.name}`) ?? []).filter(({ time }) => time >= from && time < to && !ranges.some((range) => time >= range.from && time < range.to));
+  return extra.length ? [...list, ...extra].sort((a, b) => a.time - b.time) : list;
 };
 
 const offsets = new Map<string, number>();
@@ -349,6 +352,44 @@ const deleteReadings: Handler = ({ body }) => {
   return { deleted: count };
 };
 
+const exportReadings: Handler = ({ query }) => {
+  const sensor = findSensor(query.get('sensor'));
+
+  if (!sensor) {
+    throw new ApiError(404, 'sensor not found');
+  }
+
+  const rows = sensor.metrics.flatMap((item) => readings(sensor, item, 0, now()).map(({ time, value }) => `${iso(time)},${item.name},${value},${units[item.name]}`));
+  return `time,metric,value,unit\n${rows.join('\n')}\n`;
+};
+
+// Like the API: a reading within a minute of one of the same value is already here.
+const importReadings: Handler = ({ body }) => {
+  const sensor = findSensor(body.sensor);
+
+  if (!sensor) {
+    throw new ApiError(404, 'sensor not found');
+  }
+
+  const result = { added: 0, skipped: 0, invalid: 0 };
+
+  for (const [name, at, reading, unit] of body.readings) {
+    const item = sensor.metrics.find((entry) => entry.name === name);
+    const time = Date.parse(at);
+
+    if (!item || Number.isNaN(time) || time > now() + 5 * MINUTE || typeof reading !== 'number' || (unit !== undefined && unit !== units[name])) {
+      result.invalid++;
+    } else if (readings(sensor, item, time - MINUTE, time + MINUTE + 1).length) {
+      result.skipped++;
+    } else {
+      imported.set(`${sensor.id}:${name}`, [...(imported.get(`${sensor.id}:${name}`) ?? []), { time, value: reading }]);
+      result.added++;
+    }
+  }
+
+  return result;
+};
+
 const routes: Record<string, Handler> = {
   'GET /sensors': () => ({ sensors: sensors.map(sensorJson) }),
   'POST /sensors': ({ body }) => {
@@ -406,6 +447,8 @@ const routes: Record<string, Handler> = {
   'GET /sinks': () => ({ sinks: [{ name: 'lyra', label: 'Lyra' }] }),
   'GET /readings': listReadings,
   'DELETE /readings': deleteReadings,
+  'GET /readings/export': exportReadings,
+  'POST /readings/import': importReadings,
   'GET /dashboard': () => ({ cards: dashboard }),
   'PUT /dashboard': ({ body }) => ({ cards: (dashboard = body.cards) }),
   'DELETE /dashboard': () => {

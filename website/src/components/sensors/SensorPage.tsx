@@ -1,5 +1,6 @@
-import { type CSSProperties, useState } from 'react';
+import { type CSSProperties, useRef, useState } from 'react';
 import { api } from '../../lib/api';
+import { exportReadings, importReadings } from '../../lib/backup';
 import { cardKey } from '../../lib/cards';
 import { clockTime, formatNumber, intervalText, unitText } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
@@ -43,6 +44,8 @@ export default function SensorPage({ params }: { params: Params }) {
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [backup, setBackup] = useState<'export' | number | null>(null);
+  const file = useRef<HTMLInputElement>(null);
   const sensor = data?.sensors.find((item) => item.id === id);
   const home = summaryHome() ?? { href: '/sensors/', label: 'Sensors' };
 
@@ -249,6 +252,35 @@ export default function SensorPage({ params }: { params: Params }) {
             />
           ))}
         </Section>
+        <Section title="Backup" footer="A backup is a CSV file with every reading of this sensor. Importing one only adds the readings that aren't here yet.">
+          <Row
+            label="Export Data"
+            detail={backup === 'export' ? 'Exporting…' : undefined}
+            disabled={backup !== null}
+            onClick={() =>
+              run(async () => {
+                setBackup('export');
+                showNotice(await exportReadings(sensor).finally(() => setBackup(null)));
+              })
+            }
+          />
+          <Row label="Import Data…" detail={typeof backup === 'number' ? `Importing… ${Math.round(backup * 100)}%` : undefined} disabled={backup !== null} onClick={() => file.current?.click()} />
+        </Section>
+        <input
+          ref={file}
+          type="file"
+          accept=".csv,text/csv"
+          className="hidden"
+          onChange={(event) => {
+            const picked = event.target.files?.[0];
+            event.target.value = '';
+
+            if (picked) {
+              setBackup(0);
+              run(async () => showNotice(await importReadings(sensor, picked, setBackup).finally(() => setBackup(null))));
+            }
+          }}
+        />
         <Section>
           <Row label="Remove Sensor" danger onClick={() => setRemoving(true)} />
         </Section>

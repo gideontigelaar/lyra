@@ -211,6 +211,8 @@ Add `--dry-run` first to see what would change. Files deleted locally are delete
 - `GET /lyra/decoders`, `GET /lyra/sinks`: the sensor types and destinations there are
 - `GET /lyra/readings?sensor=ID&metric=NAME&from=TIME&to=TIME&tz=ZONE&bucket=BUCKET`: one value of one sensor over time
 - `DELETE /lyra/readings`: delete readings in time ranges
+- `GET /lyra/readings/export?sensor=ID`: every reading of a sensor as CSV, for a backup
+- `POST /lyra/readings/import`: add readings from a backup
 - `GET /lyra/dashboard`: the summary cards, `null` until customised
 - `PUT /lyra/dashboard`: save the summary cards
 - `DELETE /lyra/dashboard`: go back to the default summary
@@ -244,6 +246,16 @@ Body of `DELETE /lyra/readings`:
 {"sensor": 1, "metric": "temperature", "ranges": [{"from": "2026-11-07T23:00:00Z", "to": "2026-11-08T23:00:00Z"}]}
 ```
 
+Body of `POST /lyra/readings/import`, each reading as `[metric, time, value]` with the unit as an optional fourth item:
+```json
+{"sensor": 1, "readings": [["temperature", "2026-11-12T10:00:00Z", 21.43, "°C"], ["humidity", "2026-11-12T10:00:00Z", 55]]}
+```
+
+Response:
+```json
+{"added": 2, "skipped": 0, "invalid": 0}
+```
+
 ## Good to know
 - Every response carries the security headers from `send_security_headers()` in `lib/http.php`.
 - Each file in `modules/` has its handlers and returns its routes. A new module goes in `MODULES` in `index.php`, shared helpers in `lib/`.
@@ -254,6 +266,7 @@ Body of `DELETE /lyra/readings`:
 - A value is stored once its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so late broadcasts still get the right time.
 - Only a source's latest telemetry is kept, and unknown fields are ignored, so newer firmware keeps working. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, and `pending` and `dropped` count broadcasts waiting in or dropped from the queue.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, which defaults to UTC.
+- A backup has the columns `time`, `metric`, `value` and `unit`, in the units readings are stored in, with a byte order mark so Excel reads it as UTF-8. Importing skips readings that are stored already, or that are within a minute of a stored reading of the same value, so a backup that overlaps what's there only adds what's missing. A value the sensor didn't have yet is added to it, and readings with an unknown value, another unit or a time in the future count as invalid. A request takes up to 5000 readings, the website sends a backup in parts.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
 - Temperatures are stored in °C, `temperature_unit` only changes what the website shows.
 - Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`. The last one can't be removed, and removing one ends its sessions.

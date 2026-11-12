@@ -33,6 +33,7 @@ Add `--dry-run` first to see what would change. Files deleted locally are delete
 - An average card and a batteries card of more sensors open a page of their own, with the average's chart or every battery.
 - Without saved cards, Summary has a card per value for a single sensor, or a card per sensor when there are more. Above the cards it only lists what needs attention: an offline source, a sensor that went quiet or a low battery.
 - A sensor's page has a chart of the chosen value per hour, day, week, month, 6 months or year. The line is the average and the band runs from lowest to highest. All Recorded Data lists days or single readings, and can delete them.
+- Under a sensor's Backup, Export Data downloads every reading as a CSV file and Import Data adds the readings of one that aren't there yet, see `src/lib/backup.ts`. A file Excel saved again, with semicolons and decimal commas, still imports.
 - A source's Diagnostics show the health it reports every 5 minutes.
 - `src/lib/metrics.ts` sets each value's label, icon, decimals and colour. Battery only shows outside a sensor's page and the Batteries card when it's low, battery voltage only under a sensor's Details.
 - Animations only use Tailwind's own utilities. Changing the theme crossfades the page with a view transition where the browser has one.
