@@ -1,0 +1,28 @@
+{
+  "name": "lyra-website",
+  "private": true,
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "astro": "^7.4.10",
+    "tailwindcss": "^4.3.5"
+  },
+  "allowScripts": {
+    "fsevents@2.3.3": true
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "typescript": "^6.0.3"
+  }
+}

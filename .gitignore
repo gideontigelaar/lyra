@@ -1,4 +1,7 @@
+.astro/
 .pio/
+dist/
+node_modules/
 vendor/
 
 .vscode/
@@ -6,4 +9,3 @@ vendor/
 
 api/creds.json
 firmware/include/credentials.h
-website/creds.json
