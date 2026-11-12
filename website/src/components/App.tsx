@@ -63,23 +63,8 @@ const findRoute = (pathname: string) => {
   return null;
 };
 
-// Each tab opens on the page it was left on, for as long as this browser tab is open. Popups don't count, only pages.
-type Memory = Partial<Record<Tab, { href: string; trail: Trail[] }>>;
-
-const memory = (): Memory => {
-  try {
-    const saved = JSON.parse(sessionStorage.getItem('tabs') ?? '{}');
-    return saved && typeof saved === 'object' ? saved : {};
-  } catch {
-    return {};
-  }
-};
-
-const remember = (tab: Tab, href: string, trail: Trail[]) => {
-  try {
-    sessionStorage.setItem('tabs', JSON.stringify({ ...memory(), [tab]: { href, trail } }));
-  } catch {}
-};
+// Each tab opens on the page it was left on. It's only kept in memory, so loading the page again starts every tab afresh. Popups don't count, only pages.
+const memory: Partial<Record<Tab, { href: string; trail: Trail[] }>> = {};
 
 function NotFound() {
   return (
@@ -100,8 +85,8 @@ const ROOTS = new Set(['/', '/sensors/', '/sources/']);
 
 // A tab goes where it was left, or to its first page when it's the tab you're in.
 const tabHref = (tab: Tab, href: string, current?: Tab) => {
-  const saved = memory()[tab]?.href;
-  return tab !== current && typeof saved === 'string' && findRoute(new URL(saved, location.origin).pathname)?.tab === tab ? saved : href;
+  const saved = memory[tab]?.href;
+  return tab !== current && saved ? saved : href;
 };
 
 function Tabs({ current, bottom = false }: { current?: Tab; bottom?: boolean }) {
@@ -148,7 +133,7 @@ export default function App() {
     if (pathname === `${SUMMARY}/`) {
       navigate('/', pageState(), true);
     } else if (tab) {
-      remember(tab, path, pageState().trail);
+      memory[tab] = { href: path, trail: pageState().trail };
     }
   }, [path]);
 
@@ -172,8 +157,8 @@ export default function App() {
       const here = findRoute(location.pathname);
 
       if (link.dataset.tab) {
-        const saved = memory()[target.tab!];
-        href !== location.pathname + location.search && navigate(href, { trail: href === saved?.href && Array.isArray(saved.trail) ? saved.trail : [] });
+        const saved = memory[target.tab!];
+        href !== location.pathname + location.search && navigate(href, { trail: href === saved?.href ? saved.trail : [] });
         return;
       }
 

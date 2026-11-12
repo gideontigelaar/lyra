@@ -14,7 +14,7 @@ import { card, input, label, primaryButton } from '../lib/ui';
       <label for="setup-code" class:list={[label, 'mt-6']}>Setup code</label>
       <input id="setup-code" name="code" class={input} autocomplete="one-time-code" spellcheck="false" required />
       <label for="passkey-name" class:list={[label, 'mt-4']}>Passkey name</label>
-      <input id="passkey-name" name="name" class={input} placeholder="MacBook" maxlength="50" required />
+      <input id="passkey-name" name="name" class={input} maxlength="50" required />
       <button type="submit" class:list={[primaryButton, 'mt-6 w-full py-3 text-[17px]']}>
         <KeyIcon class="size-5" aria-hidden="true" />
         Create passkey
