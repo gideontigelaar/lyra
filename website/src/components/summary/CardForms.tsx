@@ -1,7 +1,7 @@
 import { CheckIcon, PlusIcon } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 import { MAX_PER_CARD, canCombine, cardKey, fitValues, valueLimit } from '../../lib/cards';
-import { dataMetrics, hasBattery, metricStyle } from '../../lib/metrics';
+import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
 import type { Card, Sensor } from '../../lib/types';
 import { group, primaryButton, row, sectionTitle } from '../../lib/ui';
 import MetricChip from '../MetricChip';
@@ -26,15 +26,10 @@ function Toggle({ on, label, disabled, onClick }: { on: boolean; label: string; 
   );
 }
 
-// Folds away when the card has nothing to graph, like a battery.
-function GraphSwitch({ shown = true, checked, onChange }: { shown?: boolean; checked: boolean; onChange: (checked: boolean) => void }) {
+function GraphSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
   return (
-    <div inert={!shown} className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${shown ? 'grid-rows-[1fr]' : 'grid-rows-[0fr] opacity-0'}`}>
-      <div className="min-h-0 overflow-hidden">
-        <div className={`${group} mt-5`}>
-          <Row label="Graph of the last 24 hours" trailing={<Switch label="Graph of the last 24 hours" checked={checked} onChange={onChange} />} />
-        </div>
-      </div>
+    <div className={`${group} mt-5`}>
+      <Row label="Graph of the last 24 hours" trailing={<Switch label="Graph of the last 24 hours" checked={checked} onChange={onChange} />} />
     </div>
   );
 }
@@ -84,7 +79,17 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
       <p className="mt-2 px-4 text-[13px] text-muted">{note ?? `Up to ${max} ${what} per card.`}</p>
       {after}
       <button type="button" className={`${primaryButton} mt-5 w-full py-3 text-[17px]`} disabled={picked.length < min || exists} onClick={() => onSubmit(card)}>
-        {exists ? 'Already on Summary' : picked.length < min ? (min === 1 ? `Pick a ${what.slice(0, -1)}` : `Pick at least ${min} ${what}`) : editing ? 'Save' : 'Add card'}
+        {exists
+          ? 'Already on Summary'
+          : picked.length < min
+            ? min === 1
+              ? `Pick a ${what.slice(0, -1)}`
+              : `Pick at least ${min} ${what}`
+            : editing
+              ? 'Save'
+              : picked.length > 1
+                ? `Add card (${picked.length} ${what})`
+                : 'Add card'}
       </button>
     </>
   );
@@ -93,9 +98,10 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
 const sensorOptions = (sensors: Sensor[]) => sensors.map((sensor) => ({ key: sensor.id, label: sensor.name }));
 
 // One value makes a value card, more make a sensor card. A new card with more values is large, so they have room.
+// A battery isn't one of the values: it only goes on a batteries card.
 export function ValuesForm({ sensor, ...props }: FormProps & { sensor: Sensor }) {
   const edited = props.editing?.type === 'sensor' || props.editing?.type === 'metric' ? props.editing : undefined;
-  const options = dataMetrics(sensor.metrics);
+  const options = mainMetrics(sensor.metrics);
   const [picked, setPicked] = useState(() => (edited ? (edited.type === 'sensor' ? edited.metrics : [edited.metric]) : []).filter((name) => options.some((metric) => metric.name === name)));
   const [graph, setGraph] = useState(edited?.graph ?? true);
   // A new card is small while its values fit, and large when they don't.
@@ -125,10 +131,9 @@ export function ValuesForm({ sensor, ...props }: FormProps & { sensor: Sensor })
             ? `A small card fits ${max}. Enlarge it for up to ${MAX_PER_CARD.sensor}.`
             : undefined
       }
-      // Batteries change too slowly for a graph to say anything. Graphs take room, so turning them on can leave a small card fewer values.
+      // Graphs take room, so turning them on can leave a small card fewer values.
       after={
         <GraphSwitch
-          shown={picked.some((name) => name !== 'battery')}
           checked={graph}
           onChange={(on) => {
             setGraph(on);

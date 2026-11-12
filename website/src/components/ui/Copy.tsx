@@ -1,6 +1,6 @@
 import { CheckIcon, CopyIcon } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import { showError, showNotice } from '../../lib/toast';
+import { showError } from '../../lib/toast';
 
 const SHOWN_MS = 2000;
 
@@ -10,7 +10,7 @@ export function useCopy() {
 
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  // What was copied, like "MAC address" or "key", names it in the confirmation.
+  // What was copied, like "MAC address" or "key", names it if copying fails.
   const copy = async (text: string, what: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -19,7 +19,6 @@ export function useCopy() {
       return;
     }
 
-    showNotice(`${what} copied`);
     setCopied(true);
     clearTimeout(timer.current);
     timer.current = window.setTimeout(() => setCopied(false), SHOWN_MS);
@@ -30,13 +29,16 @@ export function useCopy() {
 
 const LAYER = 'col-start-1 row-start-1 transition duration-200 ease-out';
 
-// The text, with "Copied" fading in over it for a moment after copying. The alert tells screen readers.
+// The text, with "Copied" fading in over it for a moment after copying. That's the confirmation, so there's no alert for it.
 export function CopyText({ text, copied, accent = true, className = '' }: { text: string; copied: boolean; accent?: boolean; className?: string }) {
   return (
     <span className={`grid ${className}`}>
       <span className={`${LAYER} ${copied ? 'opacity-0' : ''}`}>{text}</span>
       <span aria-hidden="true" className={`${LAYER} place-self-center font-sans font-semibold ${accent ? 'text-accent' : ''} ${copied ? '' : 'opacity-0'}`}>
         Copied
+      </span>
+      <span className="sr-only" aria-live="polite">
+        {copied ? 'Copied' : ''}
       </span>
     </span>
   );

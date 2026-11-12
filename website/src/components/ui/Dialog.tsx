@@ -46,6 +46,12 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
 
       if (!dialog.open) {
         dialog.showModal();
+
+        // Focus starts on the dialog itself, unless its first field takes it. On the first button, Safari showed the focus
+        // style when coming back from a confirmation, as if the button was picked.
+        if (!(document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement)) {
+          dialog.focus();
+        }
       }
 
       return;
@@ -67,8 +73,45 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
     return () => clearTimeout(timer);
   }, [open]);
 
-  // The on-screen keyboard covers the bottom of the layout viewport on iOS, so the dialog keeps above it.
-  // Only when the keyboard comes or goes: following every scroll of the visual viewport made the dialog jump while scrolling in it.
+  // iOS scrolls the page under a modal dialog, and with the keyboard open it pans the whole view. So a swipe only scrolls
+  // something in the dialog that can still scroll that way, like modal dialogs in other libraries do. Pinch zoom and fields stay as they are.
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    let last = 0;
+    const start = (event: TouchEvent) => (last = event.touches[0].clientY);
+    const move = (event: TouchEvent) => {
+      const y = event.touches[0].clientY;
+      const down = y > last;
+      last = y;
+
+      if (event.touches.length > 1 || (event.target instanceof Element && event.target.closest('input, textarea, select'))) {
+        return;
+      }
+
+      for (let element = event.target instanceof Element ? event.target : null; element && element !== document.body; element = element.parentElement) {
+        const scrolls = /auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight;
+
+        if (scrolls && (down ? element.scrollTop > 0 : element.scrollTop + element.clientHeight < element.scrollHeight - 1)) {
+          return;
+        }
+      }
+
+      event.preventDefault();
+    };
+
+    document.addEventListener('touchstart', start, { passive: true });
+    document.addEventListener('touchmove', move, { passive: false });
+
+    return () => {
+      document.removeEventListener('touchstart', start);
+      document.removeEventListener('touchmove', move);
+    };
+  }, [open]);
+
+  // The on-screen keyboard covers the bottom of the layout viewport on iOS, so the dialog keeps above it, also when iOS moves the view to show a field.
   useEffect(() => {
     const viewport = window.visualViewport;
     const dialog = ref.current;
@@ -80,12 +123,18 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
     const update = () => dialog.style.setProperty('--keyboard', `${Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))}px`);
     update();
     viewport.addEventListener('resize', update);
-    return () => viewport.removeEventListener('resize', update);
+    viewport.addEventListener('scroll', update);
+
+    return () => {
+      viewport.removeEventListener('resize', update);
+      viewport.removeEventListener('scroll', update);
+    };
   }, [open]);
 
   return (
     <dialog
       ref={ref}
+      tabIndex={-1}
       aria-labelledby={id}
       data-closing={closing || undefined}
       onCancel={(event) => {
@@ -93,7 +142,7 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
         onClose();
       }}
       onClick={(event) => event.target === ref.current && onClose()}
-      className={`m-auto max-h-[calc(100dvh-var(--keyboard,0px)-2rem)] w-[min(30rem,calc(100%-2rem))] overflow-y-auto overscroll-contain rounded-3xl bg-bg p-6 text-inherit shadow-2xl transition duration-200 ease-out backdrop:bg-navy-950/40 backdrop:backdrop-blur-sm backdrop:transition-opacity backdrop:duration-200 starting:opacity-0 starting:backdrop:opacity-0 data-closing:opacity-0 data-closing:backdrop:opacity-0 max-sm:bottom-(--keyboard,0px) dark:bg-navy-900 dark:ring-1 dark:ring-white/10 dark:[--fill:oklch(0.34_0.05_265/0.8)] dark:[--line:var(--color-navy-700)] dark:[--surface:var(--color-navy-800)] ${
+      className={`m-auto outline-none max-h-[calc(100dvh-var(--keyboard,0px)-2rem)] w-[min(30rem,calc(100%-2rem))] overflow-y-auto overscroll-contain rounded-3xl bg-bg p-6 text-inherit shadow-2xl transition duration-200 ease-out backdrop:bg-navy-950/40 backdrop:backdrop-blur-sm backdrop:transition-opacity backdrop:duration-200 starting:opacity-0 starting:backdrop:opacity-0 data-closing:opacity-0 data-closing:backdrop:opacity-0 max-sm:bottom-(--keyboard,0px) dark:bg-navy-900 dark:ring-1 dark:ring-white/10 dark:[--fill:oklch(0.34_0.05_265/0.8)] dark:[--line:var(--color-navy-700)] dark:[--surface:var(--color-navy-800)] ${
         sheet
           ? 'pb-[max(1.5rem,calc(env(safe-area-inset-bottom)-var(--keyboard,0px)))] starting:translate-y-4 data-closing:translate-y-4 max-sm:mb-0 max-sm:max-h-[calc(100dvh-var(--keyboard,0px)-env(safe-area-inset-top)-1rem)] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none sm:starting:translate-y-0 sm:starting:scale-95 sm:data-closing:translate-y-0 sm:data-closing:scale-95'
           : ''

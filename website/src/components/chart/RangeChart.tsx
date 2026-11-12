@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type PointerEvent, useEffect, useId, useRef, useState } from 'react';
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from 'react';
 import { formatNumber } from '../../lib/format';
 import type { Tick } from '../../lib/periods';
 import type { Point } from '../../lib/types';
@@ -15,6 +15,8 @@ interface Props {
   slots: number[];
   ticks: Tick[];
   color: string;
+  // Values at or under this take the other colour, like a low battery.
+  low?: { below: number; color: string };
   decimals: number;
   label: string;
   selected: number | null;
@@ -40,7 +42,7 @@ const scale = (points: Point[]) => {
   return { min, max, ticks: Array.from({ length: Math.round((max - min) / step) + 1 }, (_, i) => min + i * step), step };
 };
 
-export default function RangeChart({ id, points, before, after, start, end, slots, ticks, color, decimals, label, selected, onSelect }: Props) {
+export default function RangeChart({ id, points, before, after, start, end, slots, ticks, color, low, decimals, label, selected, onSelect }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -84,19 +86,78 @@ export default function RangeChart({ id, points, before, after, start, end, slot
   const path = (indexes: number[], value: (point: Point) => number) => curve(indexes.map((i) => [allCenters[i], yPos(value(all[i]))]));
   const inside = (i: number) => i >= shift && i < shift + points.length;
   const clip = useId();
+  const edge = low ? Math.min(Math.max((yPos(low.below) - TOP) / plotHeight, 0), 1) : 0;
+  const paint = low ? `url(#${clip}-low)` : color;
 
-  // A finger scrubs sideways through the points, like in Health or Stocks. Swiping up or down still scrolls the page and leaves the selection as it was.
-  const scrub = useRef<{ pointer: number; before: number | null } | null>(null);
+  const plot = useRef<SVGRectElement>(null);
 
-  const pick = (event: PointerEvent<SVGRectElement>) => {
-    if (!centers.length) {
+  // The point nearest to where the pointer or finger is.
+  const pickAt = (clientX: number) => {
+    if (!centers.length || !plot.current) {
       return;
     }
 
-    const pointer = event.clientX - event.currentTarget.getBoundingClientRect().left;
-    const nearest = centers.reduce((best, center, i) => (Math.abs(center - pointer) < Math.abs(centers[best] - pointer) ? i : best), 0);
-    onSelect(nearest);
+    const pointer = clientX - plot.current.getBoundingClientRect().left;
+    onSelect(centers.reduce((best, center, i) => (Math.abs(center - pointer) < Math.abs(centers[best] - pointer) ? i : best), 0));
   };
+
+  const latest = useRef(pickAt);
+  latest.current = pickAt;
+
+  // A finger taps a point, or swipes sideways through them, like in Health or Stocks. Swiping up or down scrolls the page as usual.
+  // Touch events, not pointer events, because iOS Safari didn't keep sending pointer moves to the chart.
+  useEffect(() => {
+    const element = ref.current;
+
+    if (!element) {
+      return;
+    }
+
+    let touch: { x: number; y: number; way: 'across' | 'along' | null } | null = null;
+
+    const start = (event: TouchEvent) => {
+      touch = event.touches.length === 1 ? { x: event.touches[0].clientX, y: event.touches[0].clientY, way: null } : null;
+    };
+
+    const move = (event: TouchEvent) => {
+      if (!touch) {
+        return;
+      }
+
+      const { clientX, clientY } = event.touches[0];
+
+      if (!touch.way && Math.hypot(clientX - touch.x, clientY - touch.y) > 8) {
+        touch.way = Math.abs(clientX - touch.x) > Math.abs(clientY - touch.y) ? 'across' : 'along';
+      }
+
+      if (touch.way === 'across') {
+        event.preventDefault();
+        latest.current(clientX);
+      }
+    };
+
+    const end = (event: TouchEvent) => {
+      if (touch && !touch.way) {
+        latest.current(event.changedTouches[0].clientX);
+      }
+
+      touch = null;
+    };
+
+    const cancel = () => (touch = null);
+
+    element.addEventListener('touchstart', start, { passive: true });
+    element.addEventListener('touchmove', move, { passive: false });
+    element.addEventListener('touchend', end);
+    element.addEventListener('touchcancel', cancel);
+
+    return () => {
+      element.removeEventListener('touchstart', start);
+      element.removeEventListener('touchmove', move);
+      element.removeEventListener('touchend', end);
+      element.removeEventListener('touchcancel', cancel);
+    };
+  }, []);
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (!points.length) {
@@ -133,23 +194,37 @@ export default function RangeChart({ id, points, before, after, start, end, slot
               </text>
             </g>
           ))}
+          {low && (
+            // Above the line where values count as low the chart has its own colour, below it the other one.
+            <linearGradient id={`${clip}-low`} gradientUnits="userSpaceOnUse" x1={0} x2={0} y1={TOP} y2={TOP + plotHeight}>
+              <stop offset={edge} style={{ stopColor: color }} />
+              <stop offset={edge} style={{ stopColor: low.color }} />
+            </linearGradient>
+          )}
           <clipPath id={clip}>
             <rect x={0} y={0} width={plotWidth} height={HEIGHT} />
           </clipPath>
           <g key={id} className="transition-opacity duration-300 ease-out starting:opacity-0">
             {segments.map((indexes) => (
               <g key={all[indexes[0]].time} clipPath={`url(#${clip})`}>
-                <path d={`${path(indexes, (point) => point.max)}${path([...indexes].reverse(), (point) => point.min).replace('M', 'L')}Z`} style={{ fill: color, fillOpacity: 0.16 }} />
-                <path d={path(indexes, (point) => point.avg)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: color }} />
+                <path d={`${path(indexes, (point) => point.max)}${path([...indexes].reverse(), (point) => point.min).replace('M', 'L')}Z`} style={{ fill: paint, fillOpacity: 0.16 }} />
+                <path d={path(indexes, (point) => point.avg)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: paint }} />
                 {(indexes.length === 1 || !slots.length) &&
-                  indexes.filter(inside).map((i) => <circle key={i} cx={allCenters[i]} cy={yPos(all[i].avg)} r={indexes.length === 1 ? 4 : 2.5} style={{ fill: color }} />)}
+                  indexes.filter(inside).map((i) => <circle key={i} cx={allCenters[i]} cy={yPos(all[i].avg)} r={indexes.length === 1 ? 4 : 2.5} style={{ fill: paint }} />)}
               </g>
             ))}
           </g>
           {selected !== null && centers[selected] !== undefined && (
             <>
               <line x1={centers[selected]} x2={centers[selected]} y1={TOP} y2={TOP + plotHeight} className="stroke-muted" strokeWidth={1} />
-              <circle cx={centers[selected]} cy={yPos(points[selected].avg)} r={5} strokeWidth={2} className="stroke-bg" style={{ fill: color }} />
+              <circle
+                cx={centers[selected]}
+                cy={yPos(points[selected].avg)}
+                r={5}
+                strokeWidth={2}
+                className="stroke-bg"
+                style={{ fill: low && points[selected].avg <= low.below ? low.color : color }}
+              />
             </>
           )}
           {!points.length && (
@@ -163,28 +238,9 @@ export default function RangeChart({ id, points, before, after, start, end, slot
             width={plotWidth}
             height={HEIGHT}
             fill="transparent"
-            onPointerDown={(event) => {
-              if (event.pointerType === 'mouse') {
-                pick(event);
-                return;
-              }
-
-              scrub.current = { pointer: event.pointerId, before: selected };
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerMove={(event) => (event.pointerType === 'mouse' || scrub.current?.pointer === event.pointerId) && pick(event)}
-            onPointerUp={(event) => {
-              if (scrub.current?.pointer === event.pointerId) {
-                pick(event);
-                scrub.current = null;
-              }
-            }}
-            onPointerCancel={() => {
-              if (scrub.current) {
-                onSelect(scrub.current.before);
-                scrub.current = null;
-              }
-            }}
+            ref={plot}
+            onPointerDown={(event) => event.pointerType !== 'touch' && pickAt(event.clientX)}
+            onPointerMove={(event) => event.pointerType !== 'touch' && pickAt(event.clientX)}
             onPointerLeave={(event) => event.pointerType === 'mouse' && onSelect(null)}
           />
         </svg>

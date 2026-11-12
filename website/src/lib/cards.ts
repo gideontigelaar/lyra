@@ -1,4 +1,4 @@
-import { dataMetrics, hasBattery, mainMetrics, metricStyle } from './metrics';
+import { hasBattery, mainMetrics, metricStyle } from './metrics';
 import { SUMMARY, averagePath, batteriesPath, sensorPath } from './paths';
 import type { Card, Sensor, SensorMetric } from './types';
 
@@ -19,21 +19,18 @@ export const cardKey = (card: Card) => {
   }
 };
 
-// Main values first, then battery, like everywhere else.
-const valueOrder = <T extends { name: string }>(metrics: T[]) => [...mainMetrics(metrics), ...metrics.filter((metric) => metric.name === 'battery')];
-
 // How many values a sensor card holds. A small card has room for 3 under each other, or 2 with their graphs.
 export const valueLimit = (size: Card['size'], graph: boolean) => (size === 'large' ? MAX_PER_CARD.sensor : graph ? 2 : 3);
 
 // The values a sensor card keeps when it has less room: the first ones, as they show from left to right.
 export const fitValues = (names: string[], limit: number) =>
-  valueOrder(names.map((name) => ({ name })))
+  mainMetrics(names.map((name) => ({ name })))
     .map(({ name }) => name)
     .slice(0, limit);
 
-// What a sensor card starts with: its recorded main values and battery.
+// What a sensor card starts with: its recorded main values. A battery only goes on a batteries card.
 const sensorValues = (sensor: Sensor) =>
-  valueOrder(sensor.metrics.filter((metric) => metric.active))
+  mainMetrics(sensor.metrics.filter((metric) => metric.active))
     .map((metric) => metric.name)
     .slice(0, MAX_PER_CARD.sensor);
 
@@ -54,7 +51,7 @@ export const sparkKey = (sensor: number, metric: string) => `${sensor}:${metric}
 // Only plain measurements can be averaged across sensors, not status values like battery.
 export const canCombine = (metric: string) => metricStyle(metric).role === undefined;
 
-// The sensor values a card shows. A sensor card shows its main values and its battery.
+// The sensor values a card shows.
 export const cardValues = (card: Card, sensors: Sensor[]): { sensor: Sensor; metric: SensorMetric }[] => {
   const pick = (id: number, keep: (metric: SensorMetric) => boolean) => {
     const sensor = sensors.find((item) => item.id === id);
@@ -71,7 +68,7 @@ export const cardValues = (card: Card, sensors: Sensor[]): { sensor: Sensor; met
     default: {
       const sensor = sensors.find((item) => item.id === card.sensor)!;
       const fresh = sensor.metrics.filter((metric) => metric.active && metric.latest !== null && card.metrics.includes(metric.name));
-      return valueOrder(fresh).map((metric) => ({ sensor, metric }));
+      return mainMetrics(fresh).map((metric) => ({ sensor, metric }));
     }
   }
 };
@@ -116,14 +113,21 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, grap
         return null;
       }
 
-      // No values means all of them: cards saved before values could be picked, or before the sensor had any.
-      const known = dataMetrics(found.metrics).map((item) => item.name);
+      // No values means all of them: cards saved before values could be picked, or before the sensor had any. A battery saved with them is left out.
+      const known = mainMetrics(found.metrics).map((item) => item.name);
       const list = [...new Set(Array.isArray(names) ? names : [])].filter((name) => known.includes(name));
       const limit = valueLimit(size, graph);
       return { type, size, sensor: found.id, metric, metrics: list.length ? (list.length > limit ? fitValues(list, limit) : list) : fitValues(sensorValues(found), limit), graph };
     }
-    case 'metric':
-      return has(sensors, sensor, metric) ? { type, size, sensor: sensor as number, metric: metric as string, graph } : null;
+    case 'metric': {
+      // A battery card saved as a value card becomes a batteries card of that sensor.
+      const list = metric === 'battery' ? members([sensor], 'battery', 1, 1, sensors) : null;
+      return list
+        ? { type: 'batteries', size, sensor: null, metric: null, sensors: list }
+        : has(sensors, sensor, metric)
+          ? { type, size, sensor: sensor as number, metric: metric as string, graph }
+          : null;
+    }
     default:
       return null;
   }

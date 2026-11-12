@@ -82,7 +82,12 @@ export default function SensorPage({ params }: { params: Params }) {
   const values = dataMetrics(metrics);
   const shown = values.find((metric) => metric.name === chosen) ?? values[0];
   const currentPins = pins ?? data.pins;
-  const card: Card | null = shown ? { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true } : null;
+  // A battery is pinned as a batteries card, the only card a battery goes on.
+  const card: Card | null = !shown
+    ? null
+    : shown.name === 'battery'
+      ? { type: 'batteries', size: 'small', sensor: null, metric: null, sensors: [id] }
+      : { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true };
   const pinned = card !== null && currentPins.some((item) => cardKey(item) === cardKey(card));
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
   const now = Date.now();

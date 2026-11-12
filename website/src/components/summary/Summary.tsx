@@ -14,7 +14,7 @@ import PageHeader from '../ui/PageHeader';
 import CardEditor from './CardEditor';
 import Notices from './Notices';
 import PinSheet from './PinSheet';
-import SummaryCard, { type Bounds, PLACE, type Spark, spotStyle } from './SummaryCard';
+import SummaryCard, { type Bounds, DropOutline, type Spark } from './SummaryCard';
 
 const REFRESH_MS = 300000;
 const HOUR = 3600000;
@@ -98,13 +98,7 @@ export default function Summary() {
   const layout = layoutOf(cards, columns);
   const preview = order ? layoutOf(order.cards, columns) : layout;
   const rows = Math.max(rowsOf(preview), order?.rows ?? 0);
-  const sparkKeys = [
-    ...new Set(
-      cards.flatMap((card) =>
-        card.type === 'batteries' || !card.graph ? [] : cardValues(card, sensors).flatMap(({ sensor, metric }) => (metric.name === 'battery' ? [] : [sparkKey(sensor.id, metric.name)])),
-      ),
-    ),
-  ];
+  const sparkKeys = [...new Set(cards.flatMap((card) => (card.type === 'batteries' || !card.graph ? [] : cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name)))))];
 
   useEffect(() => {
     const refresh = setInterval(() => {
@@ -296,13 +290,7 @@ export default function Summary() {
               onDragCancel={() => endDrag(false)}
             >
               <div ref={grid} style={{ '--rows': rows } as CSSProperties} className={GRID}>
-                {order && (
-                  <div
-                    aria-hidden="true"
-                    style={spotStyle(preview.get(order.key)!)}
-                    className={`${PLACE} rounded-2xl border-2 border-dashed border-accent/50 bg-accent/5 transition-[translate,opacity] duration-200 ease-out starting:opacity-0`}
-                  />
-                )}
+                {order && <DropOutline spot={preview.get(order.key)!} />}
                 {/* One list, so a removed card keeps its element while it fades out. */}
                 {[...cards.map((card) => ({ card, leaving: false })), ...leaving.filter(({ card }) => !layout.has(cardKey(card))).map(({ card }) => ({ card, leaving: true }))].map(
                   ({ card, leaving: gone }) => {

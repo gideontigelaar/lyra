@@ -1,13 +1,13 @@
 import { useDraggable } from '@dnd-kit/core';
 import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, MinusIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import { type CSSProperties, type KeyboardEvent } from 'react';
+import { type CSSProperties, type KeyboardEvent, useEffect, useState } from 'react';
 import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
 import { clockTime, formatNumber, unitText } from '../../lib/format';
 import { batteryLevel, hasBattery, lowBattery, metricStyle } from '../../lib/metrics';
 import type { Spot } from '../../lib/grid';
 import type { Card, Point, Sensor } from '../../lib/types';
 import { card as cardClass, pressable } from '../../lib/ui';
-import BatteryFill from '../BatteryFill';
+import BatteryFill, { BatteryShape } from '../BatteryFill';
 import MetricChip from '../MetricChip';
 import Sparkline from '../chart/Sparkline';
 import MetricValue from '../MetricValue';
@@ -34,10 +34,36 @@ interface Props {
 
 // Cards are placed on the grid of Summary, which sets --cell and --gap. Spots change through transitions, so moves and resizes slide.
 // A dragged card adds how far it's moved, --dx and --dy, to the same translate. A transform would be scaled along with the lifted card.
-export const PLACE =
+const PLACE =
   'absolute top-0 left-0 h-[calc(var(--h)*var(--cell)_+_(var(--h)_-_1)*var(--gap))] w-[calc(var(--w)*var(--cell)_+_(var(--w)_-_1)*var(--gap))] translate-x-[calc(var(--x)*(var(--cell)_+_var(--gap))_+_var(--dx,0px))] translate-y-[calc(var(--y)*(var(--cell)_+_var(--gap))_+_var(--dy,0px))]';
 
-export const spotStyle = ({ x, y, w, h }: Spot) => ({ '--x': x, '--y': y, '--w': w, '--h': h }) as CSSProperties;
+const spotStyle = ({ x, y, w, h }: Spot) => ({ '--x': x, '--y': y, '--w': w, '--h': h }) as CSSProperties;
+
+// True from the second frame on. Until then a new card or outline only fades in: Safari works out the first frame's spot
+// before the grid has its width, and sliding from there looked like the cards flew in from the right.
+const useSettled = () => {
+  const [settled, setSettled] = useState(false);
+
+  useEffect(() => {
+    let frame = requestAnimationFrame(() => (frame = requestAnimationFrame(() => setSettled(true))));
+    return () => cancelAnimationFrame(frame);
+  }, []);
+
+  return settled;
+};
+
+// Where the dragged card lands.
+export function DropOutline({ spot }: { spot: Spot }) {
+  const settled = useSettled();
+
+  return (
+    <div
+      aria-hidden="true"
+      style={spotStyle(spot)}
+      className={`${PLACE} rounded-2xl border-2 border-dashed border-accent/50 bg-accent/5 duration-200 ease-out starting:opacity-0 ${settled ? 'transition-[translate,opacity]' : 'transition-opacity'}`}
+    />
+  );
+}
 
 export const cardName = (card: Card, sensors: Sensor[]) => {
   if (card.type === 'batteries') {
@@ -116,7 +142,8 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
       </div>
       {spark ? <Sparkline {...spark} color={style.color} className="mt-3 min-h-8 w-full flex-1" /> : <div className="flex-1" />}
       <div className="mt-2 flex items-baseline gap-3">
-        <MetricValue metric={name} value={value} unit={unit} size={large ? 'huge' : 'large'} />
+        {/* Without a graph the value takes its room. */}
+        <MetricValue metric={name} value={value} unit={unit} size={spark ? (large ? 'huge' : 'large') : large ? 'giant' : 'huge'} />
         {combined && large && numbers.length > 1 && (
           <span className="truncate text-[13px] text-muted">
             {formatNumber(Math.min(...numbers), style.decimals)}–{formatNumber(Math.max(...numbers), style.decimals)}
@@ -138,13 +165,26 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   const sensor = sensors.find((item) => item.id === card.sensor)!;
   const large = card.size === 'large';
   const values = cardValues(card, sensors);
+  const graphs = card.type === 'sensor' && card.graph;
   const rows = rowsOf(values, large);
   const newest = values
     .map(({ metric }) => metric.latest!.measured_at)
     .sort()
     .at(-1);
-  const size = large ? (rows.length === 1 ? 'large' : 'medium') : values.length <= 2 ? 'large' : values.length <= 3 ? 'medium' : 'small';
-  const graphs = card.type === 'sensor' && card.graph;
+  // Without graphs the values take their room.
+  const size = large
+    ? graphs
+      ? rows.length === 1
+        ? 'large'
+        : 'medium'
+      : rows.length === 1 && rows[0].length <= 2
+        ? 'huge'
+        : 'large'
+    : values.length === 1
+      ? 'huge'
+      : values.length === 2
+        ? 'large'
+        : 'medium';
 
   if (!values.length) {
     return (
@@ -155,7 +195,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
     );
   }
 
-  // A small card with graphs stacks its values, each over its graph. A battery gets its level as a bar instead.
+  // A small card with graphs stacks its values, each over its graph.
   if (!large && graphs) {
     return (
       <>
@@ -163,19 +203,14 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
         <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
           {values.map(({ metric }) => {
             const style = metricStyle(metric.name);
-            const spark = metric.name === 'battery' ? undefined : sparks[sparkKey(sensor.id, metric.name)];
-            const level = metric.latest!.value;
+            const spark = sparks[sparkKey(sensor.id, metric.name)];
             return (
               <div key={metric.name} className="flex min-h-0 flex-1 flex-col justify-end">
                 <div className="flex items-center gap-2">
                   <MetricChip metric={metric.name} small />
-                  <MetricValue metric={metric.name} value={level} unit={metric.unit} size={values.length === 1 ? 'large' : 'medium'} />
+                  <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={values.length === 1 ? 'large' : 'medium'} />
                 </div>
-                {metric.name === 'battery' ? (
-                  <BatteryFill level={level} low={lowBattery(sensor) !== null} className="mt-2 block h-1.5 w-full" />
-                ) : (
-                  spark && <Sparkline {...spark} color={style.color} className="mt-1 min-h-3 w-full flex-1" />
-                )}
+                {spark && <Sparkline {...spark} color={style.color} className="mt-1 min-h-3 w-full flex-1" />}
               </div>
             );
           })}
@@ -193,7 +228,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
           <div key={i} className="flex min-h-0 flex-1 gap-3">
             {row.map(({ metric }) => {
               const style = metricStyle(metric.name);
-              const spark = large && graphs && metric.name !== 'battery' ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
+              const spark = large && graphs ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
               return (
                 <div key={metric.name} className="@container flex min-h-0 min-w-0 flex-1 flex-col justify-end">
                   {spark && <Sparkline {...spark} color={style.color} className={`mb-2 w-full flex-1 ${rows.length === 1 ? 'min-h-5' : 'hidden min-h-4 @[24rem]/card:block'}`} />}
@@ -229,30 +264,17 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
           <Header title="Battery" subtitle={sensor.name} time={latest ? clockTime(latest.measured_at, now) : null} large={large} />
         </div>
       </div>
-      <div className="mt-auto flex items-center gap-2 pt-2">
+      {/* The level, with a battery of one size next to it, filled as far as it's charged. */}
+      <div className={`mt-auto flex items-center pt-2 ${large ? 'gap-3' : 'gap-2'}`}>
         <MetricValue metric="battery" value={level} unit="%" size={large ? 'huge' : 'large'} />
+        {level !== null && <BatteryShape level={level} low={low} className={large ? 'h-9 w-18' : 'h-6 w-12'} />}
         {low && (
           <span className="flex min-w-0 items-center gap-1 text-[13px] font-semibold" style={{ color: 'var(--status-warning)' }}>
             <WarningCircleIcon weight="fill" className="size-4 shrink-0" aria-hidden="true" />
-            <span className="truncate">Low</span>
+            <span className={`truncate ${large ? '' : 'sr-only'}`}>Low</span>
           </span>
         )}
       </div>
-      {level !== null &&
-        (large ? (
-          // A large card has room for the battery itself, filled as far as it's charged.
-          <div className="mt-3 flex items-center gap-1" aria-hidden="true">
-            <div className="h-14 flex-1 rounded-2xl border-2 border-line p-1">
-              <div
-                className="h-full rounded-xl transition-[width] duration-500"
-                style={{ width: `${Math.min(Math.max(level, 0), 100)}%`, background: low ? 'var(--status-warning)' : metricStyle('battery').color }}
-              />
-            </div>
-            <div className="h-5 w-1.5 rounded-r-md bg-line" />
-          </div>
-        ) : (
-          <BatteryFill level={level} low={low} className="mt-2.5 block h-1.5 w-full" />
-        ))}
     </>
   );
 }
@@ -295,10 +317,10 @@ export default function SummaryCard(props: Props) {
   const { card, sensors, editing, leaving = false, spot, bounds, onRemove, onResize, onEdit } = props;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: cardKey(card), disabled: !editing || leaving });
   const name = cardName(card, sensors);
+  const settled = useSettled();
   // The card stays on the grid, so dragging it to an edge never makes the page wider or longer.
   const shift = transform && bounds ? { ...transform, x: Math.min(Math.max(transform.x, bounds.left), bounds.right), y: Math.min(Math.max(transform.y, bounds.top), bounds.bottom) } : transform;
-  const single = card.type === 'batteries' ? (card.sensors.length === 1 ? card.sensors[0] : null) : card.type === 'metric' && card.metric === 'battery' ? card.sensor : null;
-  const battery = single === null ? undefined : sensors.find((item) => item.id === single && hasBattery(item));
+  const battery = card.type === 'batteries' && card.sensors.length === 1 ? sensors.find((item) => item.id === card.sensors[0] && hasBattery(item)) : undefined;
   const body = battery ? (
     <BatteryBody sensor={battery} large={card.size === 'large'} now={props.now} />
   ) : card.type === 'sensor' ? (
@@ -327,7 +349,7 @@ export default function SummaryCard(props: Props) {
       inert={leaving}
       style={{ ...spotStyle(spot), ...(shift && { '--dx': `${shift.x}px`, '--dy': `${shift.y}px` }) }}
       className={`${PLACE} @container/card rounded-2xl duration-300 ease-out ${leaving ? 'starting:scale-100 starting:opacity-100' : 'starting:scale-95 starting:opacity-0'} ${
-        isDragging ? 'z-20 shadow-xl transition-[width,height,scale,box-shadow]' : 'transition-[translate,width,height,scale,opacity,box-shadow]'
+        isDragging ? 'z-20 shadow-xl transition-[width,height,scale,box-shadow]' : settled ? 'transition-[translate,width,height,scale,opacity,box-shadow]' : 'transition-[scale,opacity]'
       } ${leaving ? 'scale-75 opacity-0' : isDragging ? 'scale-[1.03]' : editing ? 'scale-[0.97] ring-2 ring-accent/30' : ''}`}
     >
       {editing ? (

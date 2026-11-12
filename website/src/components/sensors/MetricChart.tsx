@@ -2,7 +2,7 @@ import { CaretLeftIcon, CaretRightIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { formatNumber, unitText } from '../../lib/format';
 import { failure } from '../../lib/load';
-import { metricStyle } from '../../lib/metrics';
+import { LOW_BATTERY, metricStyle } from '../../lib/metrics';
 import { type PeriodId, PERIODS, isPeriod, periods } from '../../lib/periods';
 import { averagePoints, fetchPoints, rangeOf } from '../../lib/readings';
 import type { Point, SensorMetric } from '../../lib/types';
@@ -127,6 +127,7 @@ export default function MetricChart({ sensors, metric }: Props) {
           slots={slots}
           ticks={config.ticks(start, end)}
           color={style.color}
+          low={metric.name === 'battery' ? { below: LOW_BATTERY, color: 'var(--status-warning)' } : undefined}
           decimals={style.decimals}
           label={`${style.label} chart, ${config.title(start, end, now)}. Use the arrow keys to read values.`}
           selected={selected}

@@ -201,30 +201,33 @@ export default function App() {
 
   return (
     <>
-      {isDemo() && (
-        <aside aria-label="Demo" className="bg-accent px-4 py-1.5 text-center text-[13px] font-semibold text-white dark:text-navy-950">
-          Demo with sample data. Changes reset upon reload.{' '}
-          <a href="/login/" onClick={endDemo} className="underline underline-offset-2">
-            Exit demo
-          </a>
-        </aside>
-      )}
-      <header className="sticky top-0 z-20 border-b border-line/60 bg-bg/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
-          <a href="/" className="rounded-md" aria-label="Summary">
-            <Wordmark className="h-5 w-auto" />
-          </a>
-          <Tabs current={tab} />
-          <a
-            href="/settings/"
-            className={`${iconButton} aria-[current=page]:bg-fill aria-[current=page]:text-accent`}
-            aria-label="Settings"
-            aria-current={pathname === '/settings/' ? 'page' : undefined}
-          >
-            <GearSixIcon weight="fill" className="size-6" aria-hidden="true" />
-          </a>
-        </div>
-      </header>
+      {/* The demo banner stays in view with the header. */}
+      <div className="sticky top-0 z-20">
+        {isDemo() && (
+          <aside aria-label="Demo" className="bg-accent px-4 py-1.5 text-center text-[13px] font-semibold text-white dark:text-navy-950">
+            Demo with sample data. Changes reset upon reload.{' '}
+            <a href="/login/" onClick={endDemo} className="underline underline-offset-2">
+              Exit demo
+            </a>
+          </aside>
+        )}
+        <header className="border-b border-line/60 bg-bg/80 backdrop-blur-xl">
+          <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
+            <a href="/" className="rounded-md" aria-label="Summary">
+              <Wordmark className="h-5 w-auto" />
+            </a>
+            <Tabs current={tab} />
+            <a
+              href="/settings/"
+              className={`${iconButton} aria-[current=page]:bg-fill aria-[current=page]:text-accent`}
+              aria-label="Settings"
+              aria-current={pathname === '/settings/' ? 'page' : undefined}
+            >
+              <GearSixIcon weight="fill" className="size-6" aria-hidden="true" />
+            </a>
+          </div>
+        </header>
+      </div>
       <main key={`${tab}:${route?.page?.(params) ?? path}`} className={`mx-auto w-full px-4 pt-4 pb-32 sm:px-6 sm:pt-6 md:pb-16 ${appear} ${route?.wide ? 'max-w-4xl' : 'max-w-3xl'}`}>
         {!route ? <NotFound /> : settings.data ? <route.View params={params} /> : <Message error={settings.error} loading />}
       </main>
