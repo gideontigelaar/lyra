@@ -29,6 +29,7 @@ void ApiClient::poll(uint32_t now_ms) {
     } else if (!connected && _was_connected) {
         LOG_WARN("Network: Wi-Fi connection lost");
         _last_attempt_ms = now_ms;
+        _reconnects++;
     }
 
     _was_connected = connected;
@@ -43,6 +44,10 @@ void ApiClient::poll(uint32_t now_ms) {
 
 bool ApiClient::isConnected() const {
     return WiFi.status() == WL_CONNECTED;
+}
+
+uint32_t ApiClient::reconnects() const {
+    return _reconnects;
 }
 
 SendResult ApiClient::get(const char* path, String& response) {

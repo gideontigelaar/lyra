@@ -37,5 +37,6 @@ The board doesn't know sensor types. It downloads the MAC addresses of its senso
 - Sensors are loaded from the API once Wi-Fi is connected, then every 5 minutes. Broadcasts from other devices are ignored.
 - Each sensor is relayed at most as often as its shortest recording interval in the API.
 - Up to 500 broadcasts are kept while the API can't be reached, about 5 days for one sensor. After that the oldest are dropped. They're sent in batches of 20 once it's back.
+- Every 5 minutes the board reports its own health for troubleshooting: uptime, restarts and why the last one happened, Wi-Fi signal and reconnects, free memory, chip temperature, queued and dropped broadcasts, and when the firmware was built. The restart count is kept in flash.
 - Uses the `huge_app` partition layout: 3 MB for the firmware, no over-the-air updates.
 - If flashing fails, hold the BOOT button while plugging in the board.

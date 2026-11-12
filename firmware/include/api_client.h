@@ -10,6 +10,7 @@ public:
     void init();
     void poll(uint32_t now_ms);
     bool isConnected() const;
+    uint32_t reconnects() const;
     SendResult get(const char* path, String& response);
     SendResult post(const char* path, const char* json);
 
@@ -18,6 +19,7 @@ private:
 
     bool     _was_connected   = false;
     uint32_t _last_attempt_ms = 0;
+    uint32_t _reconnects      = 0;
 
     SendResult request(const char* path, const char* json, String& response);
 };
