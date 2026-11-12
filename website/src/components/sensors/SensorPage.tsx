@@ -128,6 +128,9 @@ export default function SensorPage() {
           <div className="mt-6">
             <MetricChart sensor={id} metric={shown} />
           </div>
+          <Section title={metricStyle(shown.name).label}>
+            <Row label="Show All Data" href={`/data/?sensor=${id}&metric=${shown.name}`} />
+          </Section>
         </>
       ) : (
         <p className="px-1 text-[15px] text-muted">Waiting for the first reading.</p>

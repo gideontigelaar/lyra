@@ -59,6 +59,7 @@ const sensors = [
   },
 ];
 
+const deleted = new Map();
 let passkeys = [
   { id: 1, name: 'MacBook', created_at: iso(now() - 40 * DAY), last_used_at: iso(now() - 2 * HOUR), current: true },
   { id: 2, name: 'iPhone', created_at: iso(now() - 12 * DAY), last_used_at: null, current: false },
@@ -86,13 +87,16 @@ const value = (sensor, name, time) => {
 const lastTime = (sensor) => (sensor.device === 2 ? devices[1].seen() : now());
 
 const readings = (sensor, metric, from, to) => {
+  const ranges = deleted.get(`${sensor.id}:${metric.name}`) ?? [];
   const step = metric.interval * 1000;
   const first = Math.max(from, now() - sensor.since * DAY);
   const last = Math.min(to, lastTime(sensor));
   const list = [];
 
   for (let time = Math.ceil(first / step) * step; time < last; time += step) {
-    list.push({ time, value: value(sensor, metric.name, time) });
+    if (!ranges.some((range) => time >= range.from && time < range.to)) {
+      list.push({ time, value: value(sensor, metric.name, time) });
+    }
   }
 
   return list;
@@ -174,6 +178,27 @@ const listReadings = ({ query }) => {
   };
 };
 
+const deleteReadings = ({ body }) => {
+  const sensor = findSensor(body.sensor);
+  const metric = sensor?.metrics.find((item) => item.name === body.metric);
+
+  if (!metric) {
+    return fail(400, 'unknown sensor or metric');
+  }
+
+  const key = `${sensor.id}:${metric.name}`;
+  let count = 0;
+
+  for (const range of body.ranges) {
+    const from = Date.parse(range.from);
+    const to = Date.parse(range.to);
+    count += readings(sensor, metric, from, to).length;
+    deleted.set(key, [...(deleted.get(key) ?? []), { from, to }]);
+  }
+
+  return { deleted: count };
+};
+
 const routes = {
   'GET /sensors': () => ({ sensors: sensors.map(sensorJson) }),
   'POST /sensors': ({ body }) => {
@@ -230,6 +255,7 @@ const routes = {
   'GET /decoders': () => ({ decoders: [{ name: 'bthome', label: 'BTHome' }] }),
   'GET /sinks': () => ({ sinks: [{ name: 'lyra', label: 'Lyra' }] }),
   'GET /readings': listReadings,
+  'DELETE /readings': deleteReadings,
   'GET /passkeys': () => ({ passkeys }),
   'POST /passkeys/options': () => ({
     rp: { name: 'Lyra', id: 'localhost' },
