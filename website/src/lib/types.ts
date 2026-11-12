@@ -67,8 +67,9 @@ export interface Point {
 }
 
 export type Card =
-  | { type: 'metric'; size: 'small' | 'large'; sensor: number; metric: string; graph: boolean }
-  | { type: 'sensor'; size: 'small' | 'large'; sensor: number; metric: null; graph: boolean }
+  | { type: 'metric'; size: 'small' | 'large'; sensor: number; metric: string }
+  | { type: 'sensor'; size: 'small' | 'large'; sensor: number; metric: null }
+  | { type: 'combined'; size: 'small' | 'large'; sensor: null; metric: string; sensors: number[] }
   | { type: 'batteries'; size: 'small' | 'large'; sensor: null; metric: null };
 
 export interface Passkey {

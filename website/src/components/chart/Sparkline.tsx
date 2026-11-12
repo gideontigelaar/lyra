@@ -27,11 +27,11 @@ export default function Sparkline({ points, start, end, color, className }: Prop
   const last = points.at(-1)!;
 
   return (
-    <div className={`relative h-10 shrink-0 ${className}`} aria-hidden="true">
+    <div className={`relative ${className}`} aria-hidden="true">
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none" className="absolute inset-0 size-full overflow-visible">
         <path d={line} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" style={{ stroke: color }} />
       </svg>
-      <span className="absolute size-2.5 -translate-1/2 rounded-full ring-2 ring-surface" style={{ left: `${x(last.time)}%`, top: y(last.avg), background: color }} />
+      <span className="absolute size-2.5 -translate-1/2 rounded-full ring-2 ring-surface" style={{ left: `${x(last.time)}%`, top: `${(y(last.avg) / HEIGHT) * 100}%`, background: color }} />
     </div>
   );
 }

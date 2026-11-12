@@ -1,3 +1,4 @@
+import { CopyIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useState } from 'react';
 import { api } from '../../lib/api';
 import { cardKey } from '../../lib/cards';
@@ -9,7 +10,8 @@ import { navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh, isOnline } from '../../lib/status';
 import type { Card, Device, Option } from '../../lib/types';
-import { card as cardClass, pressable } from '../../lib/ui';
+import { card as cardClass, pressable, row } from '../../lib/ui';
+import MetricChip from '../MetricChip';
 import MetricValue from '../MetricValue';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import Fold from '../ui/Fold';
@@ -36,6 +38,7 @@ export default function SensorPage() {
   });
   const [pins, setPins] = useState<Card[] | null>(null);
   const [chosen, setChosen] = useState(() => param('metric'));
+  const [copied, setCopied] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -78,7 +81,7 @@ export default function SensorPage() {
   const values = dataMetrics(metrics);
   const shown = values.find((metric) => metric.name === chosen) ?? values[0];
   const currentPins = pins ?? data.pins;
-  const card: Card | null = shown ? { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true } : null;
+  const card: Card | null = shown ? { type: 'metric', size: 'small', sensor: id, metric: shown.name } : null;
   const pinned = card !== null && currentPins.some((item) => cardKey(item) === cardKey(card));
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
   const now = Date.now();
@@ -98,6 +101,16 @@ export default function SensorPage() {
     )}`;
   }
 
+  // Up to 3 tiles side by side, then rows of 2 or 3 where the last row stretches, so no tile sits alone next to a gap.
+  const perRow = values.length <= 3 ? values.length : values.length === 4 ? 2 : 3;
+
+  const copyAddress = () => {
+    navigator.clipboard.writeText(sensor.address).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
   const choose = (name: string) => {
     setChosen(name);
     history.replaceState(null, '', `?id=${id}&metric=${name}`);
@@ -109,7 +122,7 @@ export default function SensorPage() {
       <Message error={actionError} />
       {shown ? (
         <>
-          <div role="group" aria-label="Values" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div role="group" aria-label="Values" className="flex flex-wrap gap-3">
             {values.map((metric) => {
               const style = metricStyle(metric.name);
               return (
@@ -118,13 +131,13 @@ export default function SensorPage() {
                   type="button"
                   aria-pressed={metric === shown}
                   onClick={() => choose(metric.name)}
-                  style={{ '--tw-ring-color': style.color } as CSSProperties}
-                  className={`${cardClass} ${pressable} flex flex-col gap-3 p-4 text-left aria-pressed:ring-2`}
+                  style={{ '--tw-ring-color': style.color, flexBasis: `calc(${100 / perRow}% - ${((perRow - 1) * 0.75) / perRow}rem)` } as CSSProperties}
+                  className={`${cardClass} ${pressable} flex min-w-0 grow flex-col gap-3 p-3 text-left aria-pressed:ring-2 sm:p-4`}
                 >
-                  <span className="flex w-full items-center gap-1.5">
-                    <style.icon weight="fill" className="size-4 shrink-0" style={{ color: style.color }} aria-hidden="true" />
+                  <span className="flex w-full items-center gap-2">
+                    <MetricChip metric={metric.name} small />
                     <span className="truncate text-[15px] font-semibold">{style.label}</span>
-                    {metric.latest && <span className="ml-auto shrink-0 text-[13px] text-muted">{clockTime(metric.latest.measured_at, now)}</span>}
+                    {metric.latest && <span className={`ml-auto shrink-0 text-[13px] text-muted ${perRow > 2 ? 'max-sm:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
                   </span>
                   <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} />
                 </button>
@@ -209,7 +222,14 @@ export default function SensorPage() {
             }
           />
           <Row label="Type" detail={data.decoders.find((item) => item.name === sensor.decoder)?.label ?? sensor.decoder} />
-          <Row label="MAC address" detail={<span className="font-mono text-[15px] select-all">{sensor.address}</span>} />
+          <button type="button" className={`${row} ${pressable}`} onClick={copyAddress}>
+            <span className="min-w-0 flex-1 text-[17px]">MAC address</span>
+            <span aria-live="polite" className="text-[13px] font-semibold text-accent">
+              {copied ? 'Copied' : ''}
+            </span>
+            <span className="font-mono text-[15px] text-muted">{sensor.address}</span>
+            <CopyIcon weight="bold" className="size-4 shrink-0 text-muted/70" aria-hidden="true" />
+          </button>
           {detailMetrics(metrics).map((metric) => (
             <Row
               key={metric.name}

@@ -16,6 +16,8 @@ interface Props {
   metric: SensorMetric;
 }
 
+const HOUR = 3600000;
+
 const storedPeriod = (): PeriodId => {
   try {
     const period = localStorage.getItem('period');
@@ -30,6 +32,7 @@ export default function MetricChart({ sensor, metric }: Props) {
   const [period, setPeriod] = useState(storedPeriod);
   const [start, setStart] = useState(() => periods[storedPeriod()].start(new Date()));
   const [points, setPoints] = useState<Point[] | null>(null);
+  const [edges, setEdges] = useState<{ before?: Point; after?: Point }>({});
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const config = periods[period];
@@ -41,8 +44,17 @@ export default function MetricChart({ sensor, metric }: Props) {
     setSelected(null);
     setPoints(null);
 
-    fetchPoints(sensor, metric.name, start.getTime(), end.getTime(), config.bucket).then(
-      (result) => current && (setPoints(result), setError(null)),
+    // One bucket on each side, so the line can continue to the chart's edges.
+    const margin = { raw: 3 * HOUR, hour: HOUR, day: 25 * HOUR, week: 8 * 24 * HOUR, month: 32 * 24 * HOUR }[config.bucket];
+
+    fetchPoints(sensor, metric.name, start.getTime() - margin, end.getTime() + margin, config.bucket).then(
+      (result) => {
+        if (current) {
+          setPoints(result.filter((point) => point.time >= start.getTime() && point.time < end.getTime()));
+          setEdges({ before: result.findLast((point) => point.time < start.getTime()), after: result.find((point) => point.time >= end.getTime()) });
+          setError(null);
+        }
+      },
       (e) => current && setError(failure(e)),
     );
 
@@ -98,6 +110,8 @@ export default function MetricChart({ sensor, metric }: Props) {
       <div className="mt-4">
         <RangeChart
           points={points ?? []}
+          before={edges.before}
+          after={edges.after}
           start={start.getTime()}
           end={end.getTime()}
           slots={slots}

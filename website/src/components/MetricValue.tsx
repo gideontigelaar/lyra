@@ -5,8 +5,10 @@ interface Props {
   metric: string;
   value: number | null;
   unit: string;
-  size?: 'small' | 'large';
+  size?: 'small' | 'medium' | 'large' | 'huge';
 }
+
+const SIZES = { small: 'text-[18px]', medium: 'text-[22px]', large: 'text-[28px]', huge: 'text-[36px]' };
 
 export default function MetricValue({ metric, value, unit, size = 'large' }: Props) {
   if (value === null) {
@@ -15,7 +17,7 @@ export default function MetricValue({ metric, value, unit, size = 'large' }: Pro
 
   return (
     <span className="whitespace-nowrap tabular-nums">
-      <span className={size === 'large' ? 'text-[28px] leading-none font-semibold tracking-tight' : 'text-[20px] leading-none font-semibold'}>{formatNumber(value, metricStyle(metric).decimals)}</span>
+      <span className={`leading-none font-semibold tracking-tight ${SIZES[size]}`}>{formatNumber(value, metricStyle(metric).decimals)}</span>
       <span className="text-[15px] font-semibold text-muted">{unitText(unit)}</span>
     </span>
   );

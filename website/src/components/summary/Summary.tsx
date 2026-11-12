@@ -3,7 +3,7 @@ import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordi
 import { ArrowUUpLeftIcon, ArrowUUpRightIcon, PlusIcon } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { api } from '../../lib/api';
-import { cardKey, cardMetrics, defaultCards, sparkKey, toCards } from '../../lib/cards';
+import { cardKey, cardValues, defaultCards, sparkKey, toCards } from '../../lib/cards';
 import { failure, useLoad } from '../../lib/load';
 import { fetchPoints } from '../../lib/readings';
 import { loadSensors } from '../../lib/sensors';
@@ -40,7 +40,7 @@ export default function Summary() {
   const stored = saved === undefined ? (data ? toCards(data[2].cards, sensors) : null) : saved;
   const cards = history?.present ?? stored ?? defaultCards(sensors);
   const sparkKeys = [
-    ...new Set(cards.flatMap((card) => (card.size === 'large' && card.type !== 'batteries' && card.graph ? cardMetrics(card, sensors).map((metric) => sparkKey(card.sensor, metric.name)) : []))),
+    ...new Set(cards.flatMap((card) => (card.type === 'sensor' && card.size === 'small' ? [] : cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name))))),
   ];
 
   useEffect(() => {
@@ -159,18 +159,16 @@ export default function Summary() {
             <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
               <SortableContext items={cards.map(cardKey)} strategy={rectSortingStrategy}>
                 <div className="grid auto-rows-[calc((100cqw-0.75rem)/2)] grid-cols-2 gap-3 md:auto-rows-[calc((100cqw-2.25rem)/4)] md:grid-cols-4">
-                  {cards.map((card, index) => (
+                  {cards.map((card) => (
                     <SummaryCard
                       key={cardKey(card)}
                       card={card}
                       sensors={sensors}
                       sparks={sparks}
                       now={now}
-                      index={index}
                       editing={history !== null}
                       onRemove={() => change(cards.filter((item) => item !== card))}
                       onResize={() => change(cards.map((item) => (item === card ? { ...item, size: item.size === 'small' ? 'large' : 'small' } : item)))}
-                      onGraph={() => change(cards.map((item) => (item === card && item.type !== 'batteries' ? { ...item, graph: !item.graph } : item)))}
                     />
                   ))}
                 </div>

@@ -1,115 +1,158 @@
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, CaretRightIcon, ChartLineIcon, MinusIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import { cardHref, cardKey, cardMetrics, sparkKey } from '../../lib/cards';
-import { clockTime } from '../../lib/format';
+import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, MinusIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
+import { clockTime, formatNumber, unitText } from '../../lib/format';
 import { batteryLevel, hasBattery, lowBattery, metricStyle } from '../../lib/metrics';
 import type { Card, Point, Sensor } from '../../lib/types';
-
-export type Spark = { points: Point[]; start: number; end: number };
 import { card as cardClass, pressable } from '../../lib/ui';
+import MetricChip from '../MetricChip';
 import Sparkline from '../chart/Sparkline';
 import MetricValue from '../MetricValue';
+
+export type Spark = { points: Point[]; start: number; end: number };
 
 interface Props {
   card: Card;
   sensors: Sensor[];
   sparks: Record<string, Spark>;
   now: number;
-  index: number;
   editing: boolean;
   onRemove: () => void;
   onResize: () => void;
-  onGraph: () => void;
 }
 
 const cardName = (card: Card, sensors: Sensor[]) => {
-  const sensor = sensors.find((item) => item.id === card.sensor);
-
-  if (card.type === 'batteries' || !sensor) {
+  if (card.type === 'batteries') {
     return 'Batteries';
   }
 
-  if (card.type === 'sensor') {
-    return sensor.name;
+  if (card.type === 'combined') {
+    return `Average ${metricStyle(card.metric).label.toLowerCase()}`;
   }
 
-  const label = metricStyle(card.metric).label;
-  return sensors.length > 1 ? `${sensor.name} ${label.toLowerCase()}` : label;
+  const sensor = sensors.find((item) => item.id === card.sensor)!;
+  return card.type === 'sensor' ? sensor.name : `${sensor.name} ${metricStyle(card.metric).label.toLowerCase()}`;
 };
 
-function MetricBody({ card, sensors, sparks, now }: Props) {
-  const sensor = sensors.find((item) => item.id === card.sensor)!;
-  const metric = sensor.metrics.find((item) => item.name === card.metric)!;
-  const style = metricStyle(metric.name);
+// One line per hour: the average of the sensors that have a value for that hour.
+const averageSpark = (sparks: (Spark | undefined)[]): Spark | undefined => {
+  const present = sparks.filter((spark) => spark !== undefined);
+
+  if (!present.length) {
+    return undefined;
+  }
+
+  const hours = new Map<number, number[]>();
+  present.forEach((spark) => spark.points.forEach((point) => hours.set(point.time, [...(hours.get(point.time) ?? []), point.avg])));
+
+  const points = [...hours]
+    .sort(([a], [b]) => a - b)
+    .map(([time, values]) => {
+      const avg = values.reduce((sum, value) => sum + value, 0) / values.length;
+      return { time, min: avg, max: avg, avg };
+    });
+
+  return { points, start: present[0].start, end: present[0].end };
+};
+
+function Header({ title, subtitle, time, large }: { title: string; subtitle?: string; time: string | null; large: boolean }) {
+  return (
+    <div className="flex items-start gap-2">
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[15px] font-semibold">{title}</div>
+        {subtitle && <div className="truncate text-[13px] text-muted">{subtitle}</div>}
+      </div>
+      {time && large && <span className="shrink-0 text-[13px] text-muted">{time}</span>}
+    </div>
+  );
+}
+
+function ValueBody({ card, sensors, sparks, now }: Props) {
+  const values = cardValues(card, sensors);
+  const name = card.metric!;
+  const style = metricStyle(name);
   const large = card.size === 'large';
-  const time = metric.latest ? clockTime(metric.latest.measured_at, now) : null;
-  const spark = card.type === 'metric' && card.graph ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
+  const readings = values.flatMap(({ metric }) => (metric.latest ? [metric.latest] : []));
+  const numbers = readings.map((reading) => reading.value);
+  const value = numbers.length ? numbers.reduce((sum, item) => sum + item, 0) / numbers.length : null;
+  const newest = readings
+    .map((reading) => reading.measured_at)
+    .sort()
+    .at(-1);
+  const spark = averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)]));
+  const combined = card.type === 'combined';
+  const unit = values[0]?.metric.unit ?? '';
 
   return (
     <>
-      <div className="flex items-center gap-1.5">
-        <style.icon weight="fill" className="size-4 shrink-0" style={{ color: style.color }} aria-hidden="true" />
-        <span className="truncate text-[15px] font-semibold">{style.label}</span>
-        {time && <span className={`ml-auto shrink-0 text-[13px] text-muted ${large ? '' : 'max-sm:hidden'}`}>{time}</span>}
-        {large && <CaretRightIcon weight="bold" className={`size-3.5 shrink-0 text-muted/70 ${time ? '' : 'ml-auto'}`} aria-hidden="true" />}
+      <div className="flex items-start gap-2.5">
+        <MetricChip metric={name} />
+        <div className="min-w-0 flex-1">
+          <Header
+            title={combined ? `Average ${style.label.toLowerCase()}` : style.label}
+            subtitle={combined ? values.map(({ sensor }) => sensor.name).join(', ') : sensors.length > 1 ? values[0]?.sensor.name : undefined}
+            time={newest ? clockTime(newest, now) : null}
+            large={large}
+          />
+        </div>
       </div>
-      {sensors.length > 1 && <div className="truncate text-[13px] text-muted">{sensor.name}</div>}
-      <div className="mt-auto flex items-end justify-between gap-3 pt-4">
-        <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} />
-        {large && spark && <Sparkline {...spark} color={style.color} className="w-24" />}
+      <div className="mt-3 flex items-baseline gap-3">
+        <MetricValue metric={name} value={value} unit={unit} size={large ? 'huge' : 'large'} />
+        {combined && large && numbers.length > 1 && (
+          <span className="truncate text-[13px] text-muted">
+            {formatNumber(Math.min(...numbers), style.decimals)}–{formatNumber(Math.max(...numbers), style.decimals)}
+            {unitText(unit)}
+          </span>
+        )}
       </div>
+      {spark && <Sparkline {...spark} color={style.color} className="mt-3 min-h-8 w-full flex-1" />}
     </>
   );
 }
 
+// Values fill the card in balanced rows: up to 3 side by side, more in two rows on a large card, pairs on a small one.
+const rowsOf = <T,>(items: T[], large: boolean) => {
+  const perRow = large ? (items.length <= 3 ? items.length : Math.ceil(items.length / 2)) : items.length <= 3 ? 1 : 2;
+  return Array.from({ length: Math.ceil(items.length / perRow) }, (_, i) => items.slice(i * perRow, (i + 1) * perRow));
+};
+
 function SensorBody({ card, sensors, sparks, now }: Props) {
   const sensor = sensors.find((item) => item.id === card.sensor)!;
-  const metrics = cardMetrics(card, sensors);
   const large = card.size === 'large';
-  const sparked = large && card.type === 'sensor' && card.graph && metrics.some((metric) => sparks[sparkKey(sensor.id, metric.name)]);
-  const battery = sensor.metrics.find((metric) => metric.name === 'battery' && metric.active && metric.latest);
-  const latest = metrics
-    .map((metric) => metric.latest!.measured_at)
+  const values = cardValues(card, sensors).slice(0, large ? 8 : 6);
+  const rows = rowsOf(values, large);
+  const newest = values
+    .map(({ metric }) => metric.latest!.measured_at)
     .sort()
     .at(-1);
+  const size = large ? (rows.length === 1 ? 'large' : 'medium') : values.length <= 2 ? 'large' : values.length <= 4 ? 'medium' : 'small';
 
   return (
     <>
-      <div className="flex items-center gap-2">
-        <span className="truncate text-[17px] font-semibold">{sensor.name}</span>
-        {latest && <span className="ml-auto shrink-0 text-[13px] text-muted">{clockTime(latest, now)}</span>}
-        <CaretRightIcon weight="bold" className={`size-3.5 shrink-0 text-muted/70 ${latest ? '' : 'ml-auto'}`} aria-hidden="true" />
-      </div>
-      {!latest && <div className="text-[13px] text-muted">Waiting for data</div>}
-      {sparked ? (
-        <div className="mt-auto grid gap-4 pt-3" style={{ gridTemplateColumns: `repeat(${Math.min(metrics.length, 3)}, minmax(0, 1fr))` }}>
-          {metrics.slice(0, 3).map((metric) => {
-            const style = metricStyle(metric.name);
-            const spark = sparks[sparkKey(sensor.id, metric.name)];
-            return (
-              <div key={metric.name} className="min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <style.icon weight="fill" className="size-4 shrink-0" style={{ color: style.color }} aria-label={style.label} />
-                  <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size="small" />
-                </div>
-                {spark && <Sparkline {...spark} color={style.color} className="mt-2 w-full" />}
-              </div>
-            );
-          })}
+      <Header title={sensor.name} time={newest ? clockTime(newest, now) : null} large={large} />
+      {values.length ? (
+        <div className="mt-3 flex min-h-0 flex-1 flex-col gap-3">
+          {rows.map((row, i) => (
+            <div key={i} className="flex min-h-0 flex-1 gap-4">
+              {row.map(({ metric }) => {
+                const style = metricStyle(metric.name);
+                const spark = large ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
+                return (
+                  <div key={metric.name} className="flex min-h-0 min-w-0 flex-1 flex-col justify-end">
+                    <div className="flex items-center gap-2">
+                      <MetricChip metric={metric.name} small />
+                      <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} />
+                    </div>
+                    {spark && <Sparkline {...spark} color={style.color} className="mt-2 min-h-5 w-full flex-1" />}
+                  </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       ) : (
-        <div className="mt-auto flex flex-wrap gap-x-5 gap-y-2 pt-4">
-          {[...metrics.slice(0, large ? 3 : 2), ...(large && battery ? [battery] : [])].map((metric) => {
-            const style = metricStyle(metric.name);
-            return (
-              <div key={metric.name} className="flex items-center gap-1.5">
-                <style.icon weight="fill" className="size-4 shrink-0" style={{ color: style.color }} aria-label={style.label} />
-                <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size="small" />
-              </div>
-            );
-          })}
-        </div>
+        <div className="mt-auto text-[13px] text-muted">Waiting for data</div>
       )}
     </>
   );
@@ -126,10 +169,9 @@ function BatteriesBody({ card, sensors }: Props) {
 
   return (
     <>
-      <div className="flex items-center gap-1.5">
-        <style.icon weight="fill" className="size-4 shrink-0" style={{ color: style.color }} aria-hidden="true" />
+      <div className="flex items-center gap-2.5">
+        <MetricChip metric="battery" />
         <span className="truncate text-[15px] font-semibold">Batteries</span>
-        {large && <CaretRightIcon weight="bold" className="ml-auto size-3.5 shrink-0 text-muted/70" aria-hidden="true" />}
       </div>
       <ul className="mt-auto space-y-1.5 pt-3">
         {list.map(({ sensor, level, low }) => (
@@ -138,7 +180,10 @@ function BatteriesBody({ card, sensors }: Props) {
             {low && <WarningCircleIcon weight="fill" className="size-4 shrink-0" style={{ color: 'var(--status-warning)' }} aria-label="Low" />}
             {large && level !== null && (
               <span className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-fill" aria-hidden="true">
-                <span className="block h-full rounded-full" style={{ width: `${Math.min(Math.max(level, 0), 100)}%`, background: low ? 'var(--status-warning)' : style.color }} />
+                <span
+                  className="block h-full rounded-full transition-[width] duration-500"
+                  style={{ width: `${Math.min(Math.max(level, 0), 100)}%`, background: low ? 'var(--status-warning)' : style.color }}
+                />
               </span>
             )}
             <span className="w-10 shrink-0 text-right font-semibold tabular-nums">{level === null ? '–' : `${Math.round(level)}%`}</span>
@@ -150,24 +195,29 @@ function BatteriesBody({ card, sensors }: Props) {
 }
 
 export default function SummaryCard(props: Props) {
-  const { card, sensors, index, editing, onRemove, onResize, onGraph } = props;
+  const { card, sensors, editing, onRemove, onResize } = props;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey(card), disabled: !editing });
   const name = cardName(card, sensors);
-  const body = card.type === 'metric' ? <MetricBody {...props} /> : card.type === 'sensor' ? <SensorBody {...props} /> : <BatteriesBody {...props} />;
+  const body = card.type === 'sensor' ? <SensorBody {...props} /> : card.type === 'batteries' ? <BatteriesBody {...props} /> : <ValueBody {...props} />;
   const surface = `${cardClass} flex h-full flex-col overflow-hidden p-4`;
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition, animationDelay: `${(index % 4) * -0.08}s` }}
-      className={`relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${editing && !isDragging ? 'scale-[0.97]' : ''} transition-transform duration-300 ease-out ${isDragging ? 'z-10' : ''}`}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={`relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${isDragging ? 'z-10' : ''}`}
     >
       {editing ? (
-        <div {...attributes} {...listeners} aria-label={`${name}, reorder`} className={`${surface} cursor-grab touch-none ${isDragging ? 'cursor-grabbing shadow-xl' : ''}`}>
+        <div
+          {...attributes}
+          {...listeners}
+          aria-label={`${name}, reorder`}
+          className={`${surface} cursor-grab touch-none ring-2 ring-accent/30 ${isDragging ? 'scale-[1.02] cursor-grabbing shadow-xl' : 'scale-[0.97]'}`}
+        >
           {body}
         </div>
       ) : (
-        <a href={cardHref(card)} aria-label={name} className={`${surface} ${pressable}`}>
+        <a href={cardHref(card)} aria-label={name} className={`${surface} ${pressable} hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy-950/5 active:translate-y-0 active:scale-[0.98]`}>
           {body}
         </a>
       )}
@@ -177,7 +227,7 @@ export default function SummaryCard(props: Props) {
             type="button"
             onClick={onRemove}
             aria-label={`Remove ${name}`}
-            className="absolute -top-2 -left-2 flex size-7 items-center justify-center rounded-full bg-navy-400 text-white shadow-md dark:bg-navy-600"
+            className="absolute -top-2 -left-2 flex size-7 items-center justify-center rounded-full bg-navy-400 text-white shadow-md transition duration-200 ease-out starting:scale-50 starting:opacity-0 dark:bg-navy-600"
           >
             <MinusIcon weight="bold" className="size-4" aria-hidden="true" />
           </button>
@@ -185,21 +235,10 @@ export default function SummaryCard(props: Props) {
             type="button"
             onClick={onResize}
             aria-label={`${card.size === 'small' ? 'Enlarge' : 'Shrink'} ${name}`}
-            className="absolute -right-2 -bottom-2 flex size-7 items-center justify-center rounded-full bg-surface text-navy-950 shadow-md ring-1 ring-line dark:text-navy-50"
+            className="absolute -right-2 -bottom-2 flex size-7 items-center justify-center rounded-full bg-surface text-navy-950 shadow-md ring-1 ring-line transition duration-200 ease-out starting:scale-50 starting:opacity-0 dark:text-navy-50"
           >
             {card.size === 'small' ? <ArrowsOutSimpleIcon weight="bold" className="size-4" aria-hidden="true" /> : <ArrowsInSimpleIcon weight="bold" className="size-4" aria-hidden="true" />}
           </button>
-          {card.size === 'large' && card.type !== 'batteries' && (
-            <button
-              type="button"
-              onClick={onGraph}
-              aria-label={`Graph on ${name}`}
-              aria-pressed={card.graph}
-              className="absolute right-7 -bottom-2 flex size-7 items-center justify-center rounded-full bg-surface text-navy-950 shadow-md ring-1 ring-line aria-pressed:bg-accent aria-pressed:text-white aria-pressed:ring-accent dark:text-navy-50 dark:aria-pressed:text-navy-950"
-            >
-              <ChartLineIcon weight="bold" className="size-4" aria-hidden="true" />
-            </button>
-          )}
         </>
       )}
     </div>

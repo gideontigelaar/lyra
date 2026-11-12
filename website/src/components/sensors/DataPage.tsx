@@ -68,8 +68,10 @@ export default function DataPage() {
           return;
         }
 
+        // Older data can only exist when this window's data reaches back to its first day.
+        const reachesStart = points.length > 0 && points[0].time < day(from, 1).getTime();
         setItems((list) => [...list, ...points.reverse().map((point) => ({ point, to: date ? point.time + 1000 : day(new Date(point.time), 1).getTime() }))]);
-        setExhausted(date !== null || points.length === 0);
+        setExhausted(date !== null || !reachesStart);
         setLoading(false);
       },
       (e) => current && (setError(failure(e)), setLoading(false)),
