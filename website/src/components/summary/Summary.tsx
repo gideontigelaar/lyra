@@ -1,9 +1,9 @@
-import { DndContext, type DragMoveEvent, type KeyboardCoordinateGetter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, type DragMoveEvent, type DragStartEvent, type KeyboardCoordinateGetter, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { ArrowUUpLeftIcon, ArrowUUpRightIcon, PlusIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { api } from '../../lib/api';
-import { cardKey, cardValues, defaultCards, sparkKey, toCards } from '../../lib/cards';
-import { type Columns, type Spot, layoutOf, moveTo, resize, rowsOf, withLayout } from '../../lib/grid';
+import { cardKey, cardValues, defaultCards, fitValues, sparkKey, toCards, valueLimit } from '../../lib/cards';
+import { type Columns, type Spot, dropOrder, layoutOf, rowsOf } from '../../lib/grid';
 import { failure, useLoad } from '../../lib/load';
 import { fetchPoints } from '../../lib/readings';
 import { loadSensors } from '../../lib/sensors';
@@ -14,7 +14,7 @@ import PageHeader from '../ui/PageHeader';
 import CardEditor from './CardEditor';
 import Notices from './Notices';
 import PinSheet from './PinSheet';
-import SummaryCard, { PLACE, type Spark, spotStyle } from './SummaryCard';
+import SummaryCard, { type Bounds, PLACE, type Spark, spotStyle } from './SummaryCard';
 
 const REFRESH_MS = 300000;
 const HOUR = 3600000;
@@ -33,6 +33,12 @@ const GRID =
 
 const INSTRUCTIONS = 'Press Enter to change this card. Press Space to pick it up, the arrow keys to move it and Space again to put it down.';
 
+// The card being moved: how far it may go and how far it went, in pixels.
+interface Drag {
+  bounds: Bounds;
+  delta: { x: number; y: number };
+}
+
 interface History {
   past: Card[][];
   present: Card[];
@@ -49,9 +55,10 @@ export default function Summary() {
   const [sparks, setSparks] = useState<Record<string, Spark>>({});
   const [now, setNow] = useState(Date.now());
   const [editing, setEditing] = useState<Card | null>(null);
-  const [target, setTarget] = useState<{ key: string; x: number; y: number } | null>(null);
+  const [order, setOrder] = useState<{ key: string; cards: Card[]; rows: number; bounds: Bounds } | null>(null);
   const [leaving, setLeaving] = useState<{ card: Card; spot: Spot }[]>([]);
   const grid = useRef<HTMLDivElement>(null);
+  const drag = useRef<Drag | null>(null);
   const dragged = useRef(false);
   const columns = useColumns();
 
@@ -61,15 +68,20 @@ export default function Summary() {
     return (grid.current!.clientWidth - (columns - 1) * gap) / columns + gap;
   };
 
+  // Arrow keys move a card one cell at a time, as far as it may go.
   const arrows: KeyboardCoordinateGetter = (event, { currentCoordinates }) => {
     const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.code];
 
-    if (!step || !grid.current) {
+    if (!step || !grid.current || !drag.current) {
       return undefined;
     }
 
     event.preventDefault();
-    return { x: currentCoordinates.x + step[0] * pitch(), y: currentCoordinates.y + step[1] * pitch() };
+    const { bounds, delta } = drag.current;
+    const x = delta.x + step[0] * pitch();
+    const y = delta.y + step[1] * pitch();
+    const inside = x >= bounds.left - 1 && x <= bounds.right + 1 && y >= bounds.top - 1 && y <= bounds.bottom + 1;
+    return inside ? { x: currentCoordinates.x + step[0] * pitch(), y: currentCoordinates.y + step[1] * pitch() } : currentCoordinates;
   };
 
   // A mouse drags straight away. A finger holds a moment first, so swiping still scrolls the page.
@@ -84,12 +96,12 @@ export default function Summary() {
   const stored = saved === undefined ? (data ? toCards(data[2].cards, sensors) : null) : saved;
   const cards = history?.present ?? stored ?? defaultCards(sensors);
   const layout = layoutOf(cards, columns);
-  const preview = target ? moveTo(layout, target.key, target.x, target.y, columns) : layout;
-  const rows = rowsOf(preview) + (history ? 1 : 0);
+  const preview = order ? layoutOf(order.cards, columns) : layout;
+  const rows = Math.max(rowsOf(preview), order?.rows ?? 0);
   const sparkKeys = [
     ...new Set(
       cards.flatMap((card) =>
-        card.type === 'batteries' || !card.graph || (card.type === 'sensor' && card.size === 'small') ? [] : cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name)),
+        card.type === 'batteries' || !card.graph ? [] : cardValues(card, sensors).flatMap(({ sensor, metric }) => (metric.name === 'battery' ? [] : [sparkKey(sensor.id, metric.name)])),
       ),
     ),
   ];
@@ -146,79 +158,88 @@ export default function Summary() {
   });
 
   const change = (next: Card[]) => setHistory((h) => h && { past: [...h.past, h.present], present: next, future: [] });
-  // Every change keeps the spots cards have now, so nothing else moves unless something takes its place.
-  const placed = () => withLayout(cards, layout, columns);
   const undo = () => setHistory((h) => (h && h.past.length ? { past: h.past.slice(0, -1), present: h.past.at(-1)!, future: [h.present, ...h.future] } : h));
   const redo = () => setHistory((h) => (h && h.future.length ? { past: [...h.past, h.present], present: h.future[0], future: h.future.slice(1) } : h));
 
-  const onDragMove = ({ active }: DragMoveEvent) => {
-    const rect = active.rect.current.translated;
+  // A card moves within the grid. It can go one row past the last card when that's where it would end up.
+  const onDragStart = ({ active }: DragStartEvent) => {
+    const key = String(active.id);
+    const card = cards.find((item) => cardKey(item) === key)!;
+    const spot = layout.get(key)!;
+    const end = rowsOf(layoutOf([...cards.filter((item) => item !== card), card], columns));
+    const room = Math.max(rowsOf(layout), end);
+    const step = pitch();
+    const bounds = { left: -spot.x * step, right: (columns - spot.w - spot.x) * step, top: -spot.y * step, bottom: (room - spot.h - spot.y) * step };
+
+    dragged.current = true;
+    drag.current = { bounds, delta: { x: 0, y: 0 } };
+    setOrder({ key, cards, rows: room, bounds });
+  };
+
+  const onDragMove = ({ active, delta }: DragMoveEvent) => {
     const key = String(active.id);
     const spot = layout.get(key);
 
-    if (!rect || !grid.current || !spot) {
+    if (!drag.current || !spot) {
       return;
     }
 
-    const box = grid.current.getBoundingClientRect();
-    const others = rowsOf(new Map([...layout].filter(([other]) => other !== key)));
-    const x = Math.min(Math.max(Math.round((rect.left - box.left) / pitch()), 0), columns - spot.w);
-    const y = Math.min(Math.max(Math.round((rect.top - box.top) / pitch()), 0), others);
-    setTarget((current) => (current && current.x === x && current.y === y ? current : { key, x, y }));
+    const { bounds } = drag.current;
+    const x = Math.min(Math.max(delta.x, bounds.left), bounds.right);
+    const y = Math.min(Math.max(delta.y, bounds.top), bounds.bottom);
+    const next = dropOrder(cards, key, spot.x + x / pitch(), spot.y + y / pitch(), columns);
+    const same = (list: Card[]) => list.every((card, i) => card === next[i]);
+    drag.current.delta = { x, y };
+    setOrder((current) => (current && same(current.cards) ? current : current && { ...current, cards: next }));
   };
 
   const endDrag = (drop: boolean) => {
-    if (drop && target) {
-      change(withLayout(cards, preview, columns));
+    if (drop && order && order.cards.some((card, i) => card !== cards[i])) {
+      change(order.cards);
     }
 
-    setTarget(null);
+    drag.current = null;
+    setOrder(null);
     // The click that ends a mouse drag shouldn't open the card's settings.
     setTimeout(() => (dragged.current = false));
   };
 
   const edit = (card: Card) => !dragged.current && setEditing(card);
 
-  const toggle = (card: Card) => {
-    const base = placed();
-    change(base.some((item) => cardKey(item) === cardKey(card)) ? base.filter((item) => cardKey(item) !== cardKey(card)) : [...base, card]);
+  const add = (card: Card) => {
+    change([...cards, card]);
+    setAdding(false);
   };
 
   const save = (card: Card) => {
-    change(placed().map((item) => (cardKey(item) === cardKey(editing!) ? card : item)));
+    change(cards.map((item) => (cardKey(item) === cardKey(editing!) ? card : item)));
     setEditing(null);
   };
 
   const remove = (card: Card) => {
     const key = cardKey(card);
     const spot = layout.get(key)!;
-    change(placed().filter((item) => cardKey(item) !== key));
+    change(cards.filter((item) => cardKey(item) !== key));
     setLeaving((list) => [...list.filter((item) => cardKey(item.card) !== key), { card, spot }]);
     setTimeout(() => setLeaving((list) => list.filter((item) => item.card !== card)), 300);
   };
 
-  const resizeCard = (card: Card) => {
-    const size = card.size === 'small' ? 'large' : 'small';
-    const next = resize(layout, cardKey(card), size === 'large' ? 2 : 1, columns);
+  // A sensor card that gets smaller keeps the values that fit, from the left.
+  const resizeCard = (card: Card) =>
     change(
-      withLayout(
-        cards.map((item) => (item === card ? { ...item, size } : item)),
-        next,
-        columns,
-      ),
-    );
-  };
+      cards.map((item) => {
+        if (item !== card) {
+          return item;
+        }
 
-  // The default layout is the default cards in their flowing spots, whatever spots were saved on the way.
-  const isDefault = () => {
-    const defaults = defaultCards(sensors);
-    const plain = (list: Card[]) => JSON.stringify(list.map(({ at: _, ...card }) => card));
-    const spots = (list: Card[], count: Columns) => JSON.stringify([...layoutOf(list, count)]);
-    return plain(cards) === plain(defaults) && ([2, 4] as const).every((count) => spots(cards, count) === spots(defaults, count));
-  };
+        const size = item.size === 'small' ? 'large' : 'small';
+        const limit = item.type === 'sensor' ? valueLimit(size, item.graph) : Infinity;
+        return item.type === 'sensor' && item.metrics.length > limit ? { ...item, size, metrics: fitValues(item.metrics, limit) } : { ...item, size };
+      }),
+    );
 
   const done = async () => {
-    const reset = isDefault();
+    const reset = JSON.stringify(cards) === JSON.stringify(defaultCards(sensors));
     setSaving(true);
     setSaveError(null);
 
@@ -268,16 +289,17 @@ export default function Summary() {
             <DndContext
               sensors={dragSensors}
               accessibility={{ screenReaderInstructions: { draggable: INSTRUCTIONS } }}
-              onDragStart={() => (dragged.current = true)}
+              autoScroll={{ threshold: { x: 0, y: 0.2 } }}
+              onDragStart={onDragStart}
               onDragMove={onDragMove}
               onDragEnd={() => endDrag(true)}
               onDragCancel={() => endDrag(false)}
             >
               <div ref={grid} style={{ '--rows': rows } as CSSProperties} className={GRID}>
-                {target && (
+                {order && (
                   <div
                     aria-hidden="true"
-                    style={spotStyle(preview.get(target.key)!)}
+                    style={spotStyle(preview.get(order.key)!)}
                     className={`${PLACE} rounded-2xl border-2 border-dashed border-accent/50 bg-accent/5 transition-[translate,opacity] duration-200 ease-out starting:opacity-0`}
                   />
                 )}
@@ -294,7 +316,8 @@ export default function Summary() {
                         now={now}
                         editing={history !== null}
                         leaving={gone}
-                        spot={gone ? leaving.find((item) => item.card === card)!.spot : (key === target?.key ? layout : preview).get(key)!}
+                        spot={gone ? leaving.find((item) => item.card === card)!.spot : (key === order?.key ? layout : preview).get(key)!}
+                        bounds={key === order?.key ? order.bounds : undefined}
                         onRemove={() => remove(card)}
                         onResize={() => resizeCard(card)}
                         onEdit={() => edit(card)}
@@ -305,7 +328,7 @@ export default function Summary() {
               </div>
             </DndContext>
           </div>
-          <PinSheet open={adding} sensors={sensors} cards={cards} onToggle={toggle} onClose={() => setAdding(false)} />
+          <PinSheet open={adding} sensors={sensors} cards={cards} onAdd={add} onClose={() => setAdding(false)} />
           <CardEditor card={editing} sensors={sensors} cards={cards} onSave={save} onClose={() => setEditing(null)} />
         </>
       )}

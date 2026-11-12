@@ -66,12 +66,8 @@ export interface Point {
   avg: number;
 }
 
-// A card's spot on the summary grid per column count, as [x, y].
-export type Spots = { 2?: [number, number]; 4?: [number, number] };
-
 interface CardBase {
   size: 'small' | 'large';
-  at?: Spots;
 }
 
 export type Card = CardBase &

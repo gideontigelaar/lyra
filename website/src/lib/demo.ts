@@ -21,12 +21,13 @@ interface DemoSensor {
   metrics: DemoMetric[];
   sinks: string[];
   climate?: { temperature: number; humidity: number; outside?: boolean };
+  // The battery level now. Batteries only ever run down, a little each day.
+  battery: number;
 }
 
 const MINUTE = 60000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-const YEAR = 365.25 * DAY;
 const now = () => Date.now();
 const iso = (time: number) => new Date(time).toISOString().replace(/\.\d+Z$/, 'Z');
 const key = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('');
@@ -64,6 +65,7 @@ const sensors: DemoSensor[] = [
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600), metric('voltage', 3600)],
     sinks: ['lyra'],
     climate: { temperature: 19.4, humidity: 54 },
+    battery: 92,
   },
   {
     id: 2,
@@ -75,6 +77,7 @@ const sensors: DemoSensor[] = [
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600)],
     sinks: ['lyra'],
     climate: { temperature: 21.2, humidity: 49 },
+    battery: 81,
   },
   {
     id: 3,
@@ -86,6 +89,7 @@ const sensors: DemoSensor[] = [
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600)],
     sinks: ['lyra'],
     climate: { temperature: 20.5, humidity: 51 },
+    battery: 74,
   },
   {
     id: 4,
@@ -97,6 +101,7 @@ const sensors: DemoSensor[] = [
     metrics: [metric('temperature', 900), metric('humidity', 900), metric('battery', 3600)],
     sinks: ['lyra'],
     climate: { temperature: 13, humidity: 64, outside: true },
+    battery: 16,
   },
 ];
 
@@ -110,15 +115,15 @@ let dashboard: unknown = [
 ];
 let settings = { temperature_unit: 'celsius', time_zone: null };
 let passkeys = [
-  { id: 1, name: 'MacBook', created_at: iso(now() - 40 * DAY), last_used_at: iso(now() - 2 * HOUR), current: true },
-  { id: 2, name: 'iPhone', created_at: iso(now() - 12 * DAY), last_used_at: iso(now() - 3 * DAY), current: false },
+  { id: 1, name: 'iCloud Keychain', created_at: iso(now() - 40 * DAY), last_used_at: iso(now() - 2 * HOUR), current: true },
+  { id: 2, name: 'Google Password Manager', created_at: iso(now() - 12 * DAY), last_used_at: iso(now() - 3 * DAY), current: false },
 ];
 let sessions = [
-  { id: 1, user_agent: navigator.userAgent, passkey: 'MacBook', created_at: iso(now() - 2 * HOUR), last_used_at: iso(now()), current: true },
+  { id: 1, user_agent: navigator.userAgent, passkey: 'iCloud Keychain', created_at: iso(now() - 2 * HOUR), last_used_at: iso(now()), current: true },
   {
     id: 2,
-    user_agent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
-    passkey: 'iPhone',
+    user_agent: 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Mobile Safari/537.36',
+    passkey: 'Google Password Manager',
     created_at: iso(now() - 3 * DAY),
     last_used_at: iso(now() - 5 * HOUR),
     current: false,
@@ -188,12 +193,13 @@ const SUN: [number, number][] = [
   [24, 0],
 ];
 const SLEEP: [number, number][] = [
-  [0, 4],
-  [7, 5],
-  [8.5, 0],
-  [22.5, 0],
-  [23.5, 3],
-  [24, 4],
+  [0, 3.5],
+  [6.5, 4.5],
+  [9.5, 0.5],
+  [12, 0],
+  [22, 0],
+  [23.5, 2.5],
+  [24, 3.5],
 ];
 
 const value = (sensor: DemoSensor, name: string, time: number) => {
@@ -222,6 +228,7 @@ const value = (sensor: DemoSensor, name: string, time: number) => {
     1.6 * airing +
     0.15 * drift(time, 3 * HOUR, seed) +
     0.05 * drift(time, 25 * MINUTE, seed + 1);
+  const level = Math.min(100, sensor.battery + ((now() - time) / DAY) * (0.05 + 0.01 * sensor.id));
   const temperature = outside ? outdoor + 0.3 * drift(time, 2 * HOUR, seed) + 0.1 * drift(time, 20 * MINUTE, seed + 1) : indoor;
 
   switch (name) {
@@ -234,9 +241,9 @@ const value = (sensor: DemoSensor, name: string, time: number) => {
       return +Math.min(Math.max(humidity, 25), 99).toFixed(1);
     }
     case 'battery':
-      return Math.round(100 - ((time - (now() - sensor.since * DAY)) / DAY) * (0.02 + 0.012 * sensor.id) - (outside && temperature < 5 ? 2 : 0));
+      return Math.round(level);
     default:
-      return +(2.55 + 0.0055 * (100 - ((time - (now() - sensor.since * DAY)) / DAY) * (0.02 + 0.012 * sensor.id)) + 0.004 * drift(time, 6 * HOUR, seed)).toFixed(3);
+      return +(2.55 + 0.0055 * level + 0.004 * drift(time, 6 * HOUR, seed)).toFixed(3);
   }
 };
 
@@ -346,7 +353,7 @@ const routes: Record<string, Handler> = {
   'GET /sensors': () => ({ sensors: sensors.map(sensorJson) }),
   'POST /sensors': ({ body }) => {
     const id = Math.max(0, ...sensors.map((sensor) => sensor.id)) + 1;
-    sensors.push({ id, name: body.name, address: body.address.toUpperCase(), decoder: body.decoder, device: body.device, since: 0, metrics: [], sinks: ['lyra'] });
+    sensors.push({ id, name: body.name, address: body.address.toUpperCase(), decoder: body.decoder, device: body.device, since: 0, metrics: [], sinks: ['lyra'], battery: 100 });
     return { id };
   },
   'PATCH /sensors/{id}': ({ id, body }) => {

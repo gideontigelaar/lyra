@@ -44,7 +44,7 @@ const notices = ({ sensors, devices, now }: Props) => {
     }
 
     if (battery !== null) {
-      list.push({ key: `battery:${sensor.id}`, text: `${sensor.name} needs a new battery`, detail: `${battery}% left`, href: `${href}&metric=battery` });
+      list.push({ key: `battery:${sensor.id}`, text: `${sensor.name} needs a new battery`, detail: `${battery}% left`, href: sensorPath(sensor.id, 'battery') });
     }
   }
 

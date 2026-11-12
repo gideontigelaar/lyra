@@ -28,6 +28,10 @@ export default defineConfig({
   build: {
     inlineStylesheets: 'always',
   },
+  // The site has no Markdown, and Shiki's inline styles wouldn't pass the CSP anyway.
+  markdown: {
+    syntaxHighlight: false,
+  },
   security: {
     csp: {
       directives: ["default-src 'self'", "img-src 'self' data:", "connect-src 'self' https://api.gideontigelaar.com"],
