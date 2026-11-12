@@ -22,4 +22,7 @@ export const iconButton =
 
 export const input = 'w-full rounded-xl border border-line bg-surface px-3 py-2.5 text-[17px] outline-none transition-colors placeholder:text-muted focus:border-accent';
 
+export const disclosure =
+  'flex w-fit cursor-pointer list-none items-center gap-2 rounded-lg px-1 text-[22px] font-bold tracking-tight outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden';
+
 export const label = 'mb-1.5 block text-sm font-semibold text-muted';

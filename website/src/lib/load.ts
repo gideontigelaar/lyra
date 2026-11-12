@@ -34,3 +34,7 @@ export const useLoad = <T>(load: () => Promise<T>, deps: unknown[] = []) => {
 
   return { data, error, reload: () => setVersion((v) => v + 1) };
 };
+
+export const param = (name: string) => new URLSearchParams(location.search).get(name);
+
+export const timeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;

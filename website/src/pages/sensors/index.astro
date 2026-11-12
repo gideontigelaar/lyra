@@ -1,0 +1,8 @@
+---
+import SensorList from '../../components/sensors/SensorList';
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Sensors" tab="sensors" app>
+  <SensorList client:only="react" />
+</Layout>

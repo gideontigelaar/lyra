@@ -1,0 +1,92 @@
+import { PlusIcon } from '@phosphor-icons/react';
+import { useState } from 'react';
+import { api } from '../../lib/api';
+import { clockTime, formatNumber, unitText } from '../../lib/format';
+import { useLoad } from '../../lib/load';
+import { lowBattery, mainMetrics, metricStyle } from '../../lib/metrics';
+import { loadSensors } from '../../lib/sensors';
+import { isFresh } from '../../lib/status';
+import type { Device, Option, Sensor } from '../../lib/types';
+import { iconButton } from '../../lib/ui';
+import { Row, Section } from '../ui/List';
+import Message from '../ui/Message';
+import PageHeader from '../ui/PageHeader';
+import AddSensor from './AddSensor';
+
+const sensorSummary = (sensor: Sensor) =>
+  mainMetrics(sensor.metrics.filter((metric) => metric.active && metric.latest))
+    .slice(0, 3)
+    .map((metric) => formatNumber(metric.latest!.value, metricStyle(metric.name).decimals) + unitText(metric.unit).trim())
+    .join(' · ');
+
+const sensorNote = (sensor: Sensor, devices: Device[], now: number) => {
+  const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
+  const battery = lowBattery(sensor);
+
+  if (sensor.device === null) {
+    return 'No source';
+  }
+
+  if (recorded.length && !recorded.some((metric) => isFresh(metric, now))) {
+    return `No data since ${clockTime(
+      recorded
+        .map((metric) => metric.latest!.measured_at)
+        .sort()
+        .at(-1)!,
+      now,
+    )}`;
+  }
+
+  if (battery !== null) {
+    return `Battery ${battery}%`;
+  }
+
+  return devices.length > 1 ? devices.find((device) => device.id === sensor.device)?.name : undefined;
+};
+
+export default function SensorList() {
+  const { data, error } = useLoad(() => Promise.all([loadSensors(), api<{ devices: Device[] }>('/devices'), api<{ decoders: Option[] }>('/decoders')]));
+  const [adding, setAdding] = useState(false);
+  const now = Date.now();
+
+  return (
+    <>
+      <PageHeader
+        title="Sensors"
+        actions={
+          <button type="button" className={iconButton} onClick={() => setAdding(true)} disabled={!data} aria-label="Add sensor">
+            <PlusIcon weight="bold" className="size-6" aria-hidden="true" />
+          </button>
+        }
+      />
+      <Message error={error} loading={!data} />
+      {data && (
+        <>
+          {data[0].length > 0 ? (
+            <Section>
+              {data[0].map((sensor) => {
+                const note = sensorNote(sensor, data[1].devices, now);
+                return (
+                  <Row
+                    key={sensor.id}
+                    href={`/sensor/?id=${sensor.id}`}
+                    label={
+                      <>
+                        <span className="block truncate">{sensor.name}</span>
+                        {note && <span className="block truncate text-[13px] text-muted">{note}</span>}
+                      </>
+                    }
+                    detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>}
+                  />
+                );
+              })}
+            </Section>
+          ) : (
+            <p className="px-1 text-[15px] text-muted">No sensors yet. Add one with its MAC address.</p>
+          )}
+          <AddSensor open={adding} decoders={data[2].decoders} devices={data[1].devices} onClose={() => setAdding(false)} />
+        </>
+      )}
+    </>
+  );
+}

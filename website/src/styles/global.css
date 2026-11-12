@@ -35,6 +35,12 @@
   --fill: oklch(0.9 0.02 265 / 0.7);
   --accent: #2468c8;
   --danger: #d92d20;
+  --metric-temperature: #c4480c;
+  --metric-humidity: #1e66c0;
+  --metric-battery: #0e7d50;
+  --metric-voltage: #6250d6;
+  --metric-other: var(--color-navy-500);
+  --status-good: #0a7f0a;
 }
 
 :root.dark {
@@ -46,6 +52,11 @@
   --fill: oklch(0.3 0.05 265 / 0.8);
   --accent: #6aa5ec;
   --danger: #f97066;
+  --metric-temperature: #f0773b;
+  --metric-humidity: #4d93e8;
+  --metric-battery: #2bb67c;
+  --metric-voltage: #9085e9;
+  --status-good: #3fbf3f;
 }
 
 @media (prefers-reduced-motion: reduce) {
