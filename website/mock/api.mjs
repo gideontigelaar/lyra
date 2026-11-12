@@ -21,8 +21,46 @@ const units = { temperature: '°C', humidity: '%', battery: '%', voltage: 'V' };
 const metric = (name, interval) => ({ name, interval, active: true });
 
 const devices = [
-  { id: 1, name: 'XIAO-ESP32C6-01', active: true, seen: () => now() - 25000 },
-  { id: 2, name: 'XIAO-ESP32C6-02', active: true, seen: () => now() - 3 * DAY },
+  {
+    id: 1,
+    name: 'XIAO-ESP32C6-01',
+    active: true,
+    seen: () => now() - 25000,
+    telemetry: {
+      uptime: 268200,
+      boots: 4,
+      reset_reason: 'power_on',
+      rssi: -58,
+      wifi_reconnects: 1,
+      free_heap: 186400,
+      min_free_heap: 158200,
+      largest_block: 114688,
+      temperature: 41.5,
+      pending: 0,
+      dropped: 0,
+      build: 'Nov 9 2026 20:14:05',
+    },
+  },
+  {
+    id: 2,
+    name: 'XIAO-ESP32C6-02',
+    active: true,
+    seen: () => now() - 3 * DAY,
+    telemetry: {
+      uptime: 7380,
+      boots: 9,
+      reset_reason: 'brownout',
+      rssi: -79,
+      wifi_reconnects: 6,
+      free_heap: 179200,
+      min_free_heap: 149800,
+      largest_block: 106496,
+      temperature: 38.2,
+      pending: 41,
+      dropped: 0,
+      build: 'Nov 9 2026 20:14:05',
+    },
+  },
 ];
 
 const sensors = [
@@ -233,6 +271,8 @@ const routes = {
       name: device.name,
       active: device.active,
       last_seen_at: device.seen ? iso(device.seen()) : null,
+      telemetry: device.telemetry ?? null,
+      telemetry_at: device.telemetry ? iso(device.seen()) : null,
       sensors: sensors.filter((sensor) => sensor.device === device.id).map((sensor) => sensor.id),
     })),
   }),

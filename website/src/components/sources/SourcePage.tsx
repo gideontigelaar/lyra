@@ -5,6 +5,7 @@ import { failure, param, useLoad } from '../../lib/load';
 import { loadSensors } from '../../lib/sensors';
 import type { Device } from '../../lib/types';
 import { group, pressable, primaryButton, row } from '../../lib/ui';
+import { displayUnit } from '../../lib/units';
 import { sensorSummary } from '../sensors/SensorList';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import Dialog from '../ui/Dialog';
@@ -14,11 +15,12 @@ import PageHeader from '../ui/PageHeader';
 import Switch from '../ui/Switch';
 import TextDialog from '../ui/TextDialog';
 import KeyDialog from './KeyDialog';
+import Diagnostics from './Diagnostics';
 import { sourceStatus } from './SourceList';
 
 export default function SourcePage() {
   const id = Number(param('id'));
-  const { data, error, reload } = useLoad(() => Promise.all([api<{ devices: Device[] }>('/devices'), loadSensors()]));
+  const { data, error, reload } = useLoad(() => Promise.all([api<{ devices: Device[] }>('/devices'), loadSensors(), displayUnit('°C')]));
   const [dialog, setDialog] = useState<'rename' | 'assign' | 'key' | 'remove' | null>(null);
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -67,6 +69,7 @@ export default function SourcePage() {
         <Row label="Name" detail={device.name} onClick={() => setDialog('rename')} />
         <Row label="Replace Key" onClick={() => setDialog('key')} />
       </Section>
+      <Diagnostics device={device} temperature={data[2]} now={Date.now()} />
       <Section>
         <Row label="Remove Source" danger onClick={() => setDialog('remove')} />
       </Section>

@@ -21,11 +21,28 @@ export interface Sensor {
   sinks: string[];
 }
 
+export interface Telemetry {
+  uptime?: number;
+  boots?: number;
+  reset_reason?: string;
+  rssi?: number;
+  wifi_reconnects?: number;
+  free_heap?: number;
+  min_free_heap?: number;
+  largest_block?: number;
+  temperature?: number;
+  pending?: number;
+  dropped?: number;
+  build?: string;
+}
+
 export interface Device {
   id: number;
   name: string;
   active: boolean;
   last_seen_at: string | null;
+  telemetry: Telemetry | null;
+  telemetry_at: string | null;
   sensors: number[];
 }
 
