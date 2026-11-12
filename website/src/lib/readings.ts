@@ -1,6 +1,7 @@
 import { api } from './api';
 import { timeZone } from './load';
 import type { Bucketing, Point, ReadingsResponse } from './types';
+import { displayUnit } from './units';
 
 export const fetchPoints = async (sensor: number, metric: string, from: number, to: number, bucket: Bucketing): Promise<Point[]> => {
   const query = new URLSearchParams({
@@ -11,12 +12,13 @@ export const fetchPoints = async (sensor: number, metric: string, from: number, 
     tz: timeZone(),
     bucket,
   });
-  const { readings } = await api<ReadingsResponse>(`/readings?${query}`);
+  const { unit, readings } = await api<ReadingsResponse>(`/readings?${query}`);
+  const { convert } = await displayUnit(unit);
 
   return readings.map((reading) =>
     'value' in reading
-      ? { time: Date.parse(reading.time), min: reading.value, max: reading.value, avg: reading.value }
-      : { time: Date.parse(reading.time), min: reading.min, max: reading.max, avg: reading.avg },
+      ? { time: Date.parse(reading.time), min: convert(reading.value), max: convert(reading.value), avg: convert(reading.value) }
+      : { time: Date.parse(reading.time), min: convert(reading.min), max: convert(reading.max), avg: convert(reading.avg) },
   );
 };
 

@@ -5,6 +5,7 @@ import { failure, useLoad } from '../../lib/load';
 import { passkeyError, passkeysSupported, registerPasskey, signOut } from '../../lib/passkeys';
 import type { Passkey } from '../../lib/types';
 import { textButton } from '../../lib/ui';
+import { TEMPERATURE_UNITS, type TemperatureUnit, loadSettings } from '../../lib/units';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
@@ -25,8 +26,9 @@ const storedTheme = (): Theme => {
 };
 
 export default function Settings() {
-  const { data, error, reload } = useLoad(() => api<{ passkeys: Passkey[] }>('/passkeys'));
+  const { data, error, reload } = useLoad(() => Promise.all([api<{ passkeys: Passkey[] }>('/passkeys'), loadSettings()]));
   const [theme, setTheme] = useState(storedTheme);
+  const [temperature, setTemperature] = useState<TemperatureUnit | null>(null);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Passkey | null>(null);
   const [busy, setBusy] = useState(false);
@@ -41,6 +43,19 @@ export default function Settings() {
     } catch {}
 
     window.dispatchEvent(new Event('themechange'));
+  };
+
+  const changeTemperature = async (next: TemperatureUnit) => {
+    const previous = temperature;
+    setTemperature(next);
+    setActionError(null);
+
+    try {
+      await api('/settings', 'PATCH', { temperature_unit: next });
+    } catch (e) {
+      setTemperature(previous);
+      setActionError(failure(e));
+    }
   };
 
   const add = async (name: string) => {
@@ -85,13 +100,28 @@ export default function Settings() {
           label="Appearance"
           trailing={<Segmented compact label="Appearance" options={THEMES} value={theme} onChange={changeTheme} text={(value) => ({ auto: 'Automatic', light: 'Light', dark: 'Dark' })[value]} />}
         />
+        <Row
+          label="Temperature"
+          trailing={
+            data && (
+              <Segmented
+                compact
+                label="Temperature unit"
+                options={TEMPERATURE_UNITS}
+                value={temperature ?? data[1].temperature_unit}
+                onChange={changeTemperature}
+                text={(value) => ({ celsius: '°C', fahrenheit: '°F' })[value]}
+              />
+            )
+          }
+        />
       </Section>
       <div className="mt-8">
         <Message error={error ?? actionError} loading={!data} />
       </div>
       {data && (
         <Section title="Passkeys">
-          {data.passkeys.map((passkey) => (
+          {data[0].passkeys.map((passkey) => (
             <Row
               key={passkey.id}
               label={
@@ -103,8 +133,8 @@ export default function Settings() {
                 </>
               }
               trailing={
-                <span title={data.passkeys.length === 1 ? "The last passkey can't be removed" : undefined}>
-                  <button type="button" className={`${textButton} text-[15px] text-danger`} disabled={data.passkeys.length === 1} onClick={() => setRemoving(passkey)}>
+                <span title={data[0].passkeys.length === 1 ? "The last passkey can't be removed" : undefined}>
+                  <button type="button" className={`${textButton} text-[15px] text-danger`} disabled={data[0].passkeys.length === 1} onClick={() => setRemoving(passkey)}>
                     Remove
                   </button>
                 </span>

@@ -61,6 +61,7 @@ const sensors = [
 
 const deleted = new Map();
 let dashboard = null;
+let settings = { temperature_unit: 'celsius' };
 let passkeys = [
   { id: 1, name: 'MacBook', created_at: iso(now() - 40 * DAY), last_used_at: iso(now() - 2 * HOUR), current: true },
   { id: 2, name: 'iPhone', created_at: iso(now() - 12 * DAY), last_used_at: null, current: false },
@@ -264,6 +265,11 @@ const routes = {
   },
   'DELETE /dashboard': () => {
     dashboard = null;
+    return null;
+  },
+  'GET /settings': () => settings,
+  'PATCH /settings': ({ body }) => {
+    settings = { temperature_unit: body.temperature_unit };
     return null;
   },
   'GET /passkeys': () => ({ passkeys }),

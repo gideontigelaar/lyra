@@ -36,5 +36,6 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - Tapping a card opens its sensor. A sensor's page shows its latest values, with a chart of the chosen one for the hour, day, week, month, 6 months or year, in local time. The line is the average and the band runs from the lowest to the highest reading. Each point is an hour for a day or week, and a day for longer periods. All Recorded Data lists days or single readings, which can be deleted.
 - Sensors and Sources are managed on the site. Adding a source shows its key once, for `firmware/include/credentials.h`.
 - `src/lib/metrics.ts` sets each value's label, icon, decimals and colour, other values get defaults. Battery shows on a sensor's page and the Batteries card, and elsewhere only when it's low. Battery voltage only shows under a sensor's Details.
+- Temperatures are shown in °C or °F, set per account in Settings.
 - The wordmark is the word Lyra in Bricolage Grotesque, converted to outlines, so no font is loaded. Text uses the system font.
 - Search engines are asked not to index it.
