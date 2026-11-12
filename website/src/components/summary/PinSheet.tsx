@@ -19,7 +19,7 @@ interface Props {
 
 type View = { kind: 'home' } | { kind: 'sensor'; id: number } | { kind: 'average' } | { kind: 'batteries' };
 
-const tile = `${group} ${pressable} flex min-h-24 flex-col items-start gap-2 p-3 text-left`;
+const tile = `${group} ${pressable} flex min-h-24 w-full flex-1 flex-col items-start gap-2 p-3 text-left`;
 
 const heading = `${sectionTitle} mb-2 px-1`;
 
@@ -52,48 +52,63 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
     onAdd(card);
   };
 
+  const sensorTiles = sensors.map((item) => (
+    <button key={item.id} type="button" className={tile} onClick={() => setView({ kind: 'sensor', id: item.id })}>
+      <span className="w-full truncate text-[17px] font-semibold">{item.name}</span>
+      <span className="w-full truncate text-[13px] text-muted">{summaryOf(item)}</span>
+    </button>
+  ));
+  const acrossTiles = [
+    combinable && (
+      <button key="average" type="button" className={tile} onClick={() => setView({ kind: 'average' })}>
+        <span className="flex items-center gap-2 text-[17px] font-semibold">
+          <ArrowsMergeIcon weight="bold" className="size-5 text-accent" aria-hidden="true" />
+          Average
+        </span>
+        <span className="text-[13px] text-muted">One value over 2 to {MAX_PER_CARD.combined} sensors</span>
+      </button>
+    ),
+    batteries && (
+      <button key="batteries" type="button" className={tile} onClick={() => setView({ kind: 'batteries' })}>
+        <span className="flex items-center gap-2 text-[17px] font-semibold">
+          <MetricChip metric="battery" small />
+          Batteries
+        </span>
+        <span className="text-[13px] text-muted">Levels of up to {MAX_PER_CARD.batteries} sensors</span>
+      </button>
+    ),
+  ].filter(Boolean);
+  const side = sensorTiles.length === 1 && acrossTiles.length === 1;
+
   return (
     <Dialog open={open} title={sensor ? sensor.name : titles[view.kind as keyof typeof titles]} onClose={close}>
       <div key={view.kind} className={appear}>
         {view.kind !== 'home' && <Back label="All cards" onClick={() => setView({ kind: 'home' })} />}
-        {view.kind === 'home' && (
-          <>
-            <h3 className={heading}>Sensors</h3>
+        {view.kind === 'home' &&
+          // With one tile in each section, the two sections sit side by side.
+          (side ? (
             <div className="grid grid-cols-2 gap-3">
-              {sensors.map((item) => (
-                <button key={item.id} type="button" className={tile} onClick={() => setView({ kind: 'sensor', id: item.id })}>
-                  <span className="w-full truncate text-[17px] font-semibold">{item.name}</span>
-                  <span className="w-full truncate text-[13px] text-muted">{summaryOf(item)}</span>
-                </button>
-              ))}
+              <section className="flex flex-col">
+                <h3 className={heading}>Sensors</h3>
+                {sensorTiles}
+              </section>
+              <section className="flex flex-col">
+                <h3 className={heading}>Across sensors</h3>
+                {acrossTiles}
+              </section>
             </div>
-            {(combinable || batteries) && (
-              <>
-                <h3 className={`${heading} mt-5`}>Across sensors</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  {combinable && (
-                    <button type="button" className={tile} onClick={() => setView({ kind: 'average' })}>
-                      <span className="flex items-center gap-2 text-[17px] font-semibold">
-                        <ArrowsMergeIcon weight="bold" className="size-5 text-accent" aria-hidden="true" />
-                        Average
-                      </span>
-                      <span className="text-[13px] text-muted">One value over 2 to {MAX_PER_CARD.combined} sensors</span>
-                    </button>
-                  )}
-                  {batteries && (
-                    <button type="button" className={tile} onClick={() => setView({ kind: 'batteries' })}>
-                      <span className="flex items-center gap-2 text-[17px] font-semibold">
-                        <MetricChip metric="battery" small />
-                        Batteries
-                      </span>
-                      <span className="text-[13px] text-muted">Levels of up to {MAX_PER_CARD.batteries} sensors</span>
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </>
-        )}
+          ) : (
+            <>
+              <h3 className={heading}>Sensors</h3>
+              <div className="grid grid-cols-2 gap-3">{sensorTiles}</div>
+              {acrossTiles.length > 0 && (
+                <>
+                  <h3 className={`${heading} mt-5`}>Across sensors</h3>
+                  <div className="grid grid-cols-2 gap-3">{acrossTiles}</div>
+                </>
+              )}
+            </>
+          ))}
         {view.kind === 'home' && (
           <button type="button" className={`${secondaryButton} mt-5 w-full py-3 text-[17px]`} onClick={close}>
             Cancel

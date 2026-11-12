@@ -267,7 +267,7 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
       {/* The level, with a battery of one size next to it, filled as far as it's charged. */}
       <div className={`mt-auto flex items-center pt-2 ${large ? 'gap-3' : 'gap-2'}`}>
         <MetricValue metric="battery" value={level} unit="%" size={large ? 'huge' : 'large'} />
-        {level !== null && <BatteryShape level={level} low={low} className={large ? 'h-9 w-18' : 'h-6 w-12'} />}
+        {level !== null && <BatteryShape level={level} low={low} className={large ? 'h-9' : 'h-6'} />}
         {low && (
           <span className="flex min-w-0 items-center gap-1 text-[13px] font-semibold" style={{ color: 'var(--status-warning)' }}>
             <WarningCircleIcon weight="fill" className="size-4 shrink-0" aria-hidden="true" />

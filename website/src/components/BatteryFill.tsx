@@ -12,17 +12,15 @@ export default function BatteryFill({ level, low, className }: { level: number; 
   );
 }
 
-// A battery drawn as one, filled as far as it's charged. Its height comes from the class.
+// A battery drawn as one, filled as far as it's charged. It's a drawing, so every size has the same shape: the class only sets its height.
 export function BatteryShape({ level, low, className }: { level: number; low: boolean; className: string }) {
+  const width = (38 * Math.min(Math.max(level, 0), 100)) / 100;
+
   return (
-    <span className={`flex items-center gap-0.5 ${className}`} aria-hidden="true">
-      <span className="h-full flex-1 rounded-xl border-2 border-line p-0.5">
-        <span
-          className="block h-full rounded-[0.5rem] transition-[width] duration-500"
-          style={{ width: `${Math.min(Math.max(level, 0), 100)}%`, background: low ? 'var(--status-warning)' : metricStyle('battery').color }}
-        />
-      </span>
-      <span className="h-2/5 w-1 rounded-r-sm bg-line" />
-    </span>
+    <svg viewBox="0 0 50 24" className={`w-auto shrink-0 ${className}`} aria-hidden="true">
+      <rect x={1} y={1} width={44} height={22} rx={6} fill="none" strokeWidth={2} className="stroke-line" />
+      <rect x={4} y={4} width={width} height={16} rx={3.5} className="transition-[width] duration-500" style={{ width, fill: low ? 'var(--status-warning)' : metricStyle('battery').color }} />
+      <rect x={47} y={8} width={3} height={8} rx={1.5} className="fill-line" />
+    </svg>
   );
 }
