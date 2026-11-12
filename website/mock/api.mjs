@@ -209,6 +209,24 @@ const routes = {
       sensors: sensors.filter((sensor) => sensor.device === device.id).map((sensor) => sensor.id),
     })),
   }),
+  'POST /devices': ({ body }) => {
+    const id = Math.max(0, ...devices.map((device) => device.id)) + 1;
+    devices.push({ id, name: body.name, active: true, seen: null });
+    return new Reply(201, { id, key: randomBytes(32).toString('hex') });
+  },
+  'PATCH /devices/{id}': ({ id, body }) => {
+    Object.assign(devices.find((device) => device.id === Number(id)) ?? {}, body);
+    return null;
+  },
+  'POST /devices/{id}/key': () => ({ key: randomBytes(32).toString('hex') }),
+  'DELETE /devices/{id}': ({ id }) => {
+    devices.splice(
+      devices.findIndex((device) => device.id === Number(id)),
+      1,
+    );
+    sensors.filter((sensor) => sensor.device === Number(id)).forEach((sensor) => (sensor.device = null));
+    return null;
+  },
   'GET /decoders': () => ({ decoders: [{ name: 'bthome', label: 'BTHome' }] }),
   'GET /sinks': () => ({ sinks: [{ name: 'lyra', label: 'Lyra' }] }),
   'GET /readings': listReadings,

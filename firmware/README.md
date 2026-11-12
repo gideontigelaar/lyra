@@ -3,10 +3,11 @@ Firmware for the Seeed Studio XIAO ESP32-C6 boards. Relays the Bluetooth broadca
 
 ## Requirements
 - VS Code with the PlatformIO IDE extension
-- The device and its sensors registered in the API, see [its README](../api/README.md)
+- The source added on the website, which gives you its key
+- Sensors added on the website and assigned to this source
 
 ## Setup
-Copy the credentials template, then fill in the Wi-Fi network and the device's API key:
+Copy the credentials template, then fill in the Wi-Fi network and the source's key:
 ```bash
 cp include/credentials.h.template include/credentials.h
 ```
@@ -35,7 +36,7 @@ The board doesn't know sensor types. It downloads the MAC addresses of its senso
 ## Notes
 - The ESP32-C6 only uses 2.4 GHz Wi-Fi.
 - Sensors are loaded from the API once Wi-Fi is connected, then every 5 minutes. Broadcasts from other devices are ignored.
-- Each sensor is relayed at most as often as its shortest recording interval in the API.
+- Each sensor is relayed at most as often as its shortest recording interval on the website.
 - Up to 500 broadcasts are kept while the API can't be reached, about 5 days for one sensor. After that the oldest are dropped. They're sent in batches of 20 once it's back.
 - Every 5 minutes the board reports its own health for troubleshooting: uptime, restarts and why the last one happened, Wi-Fi signal and reconnects, free memory, chip temperature, queued and dropped broadcasts, and when the firmware was built. The restart count is kept in flash.
 - Uses the `huge_app` partition layout: 3 MB for the firmware, no over-the-air updates.

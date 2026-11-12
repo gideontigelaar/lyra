@@ -1,0 +1,8 @@
+---
+import SourceList from '../../components/sources/SourceList';
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Sources" tab="sources" app>
+  <SourceList client:only="react" />
+</Layout>

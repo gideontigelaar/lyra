@@ -156,31 +156,10 @@ sudo chown gideon:lyra /var/www/api.gideontigelaar.com/lyra/creds.json
 sudo chmod 640 /var/www/api.gideontigelaar.com/lyra/creds.json
 ```
 
-## Devices and sensors
-Each device has its own API key. Create one:
-```bash
-openssl rand -hex 32
-```
+## Sources and sensors
+Sources (the ESP32 boards) and sensors are managed on the website. Adding a source shows its key once: it goes in `firmware/include/credentials.h`, and only its hash is stored.
 
-Register the device, in `sudo mariadb lyra`:
-```sql
-INSERT INTO devices (name, api_key_hash) VALUES ('DEVICE_NAME', SHA2('API_KEY', 256));
-```
-
-The same key goes in `firmware/include/credentials.h`. Only its hash is stored, so keep the key somewhere safe.
-
-Register each sensor the device relays, with its type and where its values go. The address is in capitals, like `A4:C1:38:2A:EF:13`:
-```sql
-INSERT INTO sensors (device_id, address, name, decoder) VALUES ((SELECT device_id FROM devices WHERE name = 'DEVICE_NAME'), 'SENSOR_ADDRESS', 'SENSOR_NAME', 'bthome');
-INSERT INTO sensor_sinks (sensor_id, sink) SELECT sensor_id, 'lyra' FROM sensors WHERE name = 'SENSOR_NAME';
-```
-
-Its values appear on their own once the device hears it, each recorded at its `default_interval` in `metrics`. To record one at another interval, in seconds:
-```sql
-UPDATE sensor_metrics SET report_interval = SECONDS WHERE sensor_id = (SELECT sensor_id FROM sensors WHERE name = 'SENSOR_NAME') AND metric_id = (SELECT metric_id FROM metrics WHERE name = 'METRIC_NAME');
-```
-
-The device reloads its sensors every 5 minutes, so adding one needs no firmware change.
+A sensor needs its MAC address, its type and the source that relays it. The source picks it up within 5 minutes, and each value is then recorded at its type's `default_interval` until you change it.
 
 ## Users and passkeys
 Signing in to the website only works with passkeys. Create the owner, in `sudo mariadb lyra`:
@@ -211,9 +190,9 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 
 ## Endpoints
 - `GET /lyra/`: health check
-- `GET /lyra/device/sensors`: the device's sensors and how often to relay each
+- `GET /lyra/device/sensors`: the source's sensors and how often to relay each
 - `POST /lyra/device/adverts`: relay sensor broadcasts
-- `POST /lyra/device/telemetry`: the device's own health, for troubleshooting
+- `POST /lyra/device/telemetry`: the source's own health, for troubleshooting
 - `POST /lyra/auth/options`: a challenge to sign in with
 - `POST /lyra/auth/login`: sign in with a passkey
 - `POST /lyra/auth/logout`: sign out
@@ -223,13 +202,13 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `DELETE /lyra/passkeys/{id}`: remove a passkey
 - `GET /lyra/sensors`: every sensor with its values, latest readings and sinks
 - `POST /lyra/sensors`: add a sensor
-- `PATCH /lyra/sensors/{id}`: change a sensor's name, device, values or sinks
+- `PATCH /lyra/sensors/{id}`: change a sensor's name, source, values or sinks
 - `DELETE /lyra/sensors/{id}`: remove a sensor and all its readings
-- `GET /lyra/devices`: every device, when it was last seen, its latest telemetry and its sensors
-- `POST /lyra/devices`: add a device, returns its key once
-- `PATCH /lyra/devices/{id}`: rename a device or turn it on or off
-- `POST /lyra/devices/{id}/key`: replace a device's key
-- `DELETE /lyra/devices/{id}`: remove a device, its sensors are kept
+- `GET /lyra/devices`: every source, when it was last seen, its latest telemetry and its sensors
+- `POST /lyra/devices`: add a source, returns its key once
+- `PATCH /lyra/devices/{id}`: rename a source or turn it on or off
+- `POST /lyra/devices/{id}/key`: replace a source's key
+- `DELETE /lyra/devices/{id}`: remove a source, its sensors are kept
 - `GET /lyra/decoders`, `GET /lyra/sinks`: the sensor types and destinations there are
 - `GET /lyra/readings?sensor=ID&metric=NAME&from=TIME&to=TIME&tz=ZONE&bucket=BUCKET`: one value of one sensor over time
 - `DELETE /lyra/readings`: delete readings in time ranges
@@ -239,7 +218,7 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `GET /lyra/settings`: the user's settings
 - `PATCH /lyra/settings`: change `temperature_unit` to `celsius` or `fahrenheit`
 
-Device endpoints need the header `Authorization: Bearer API_KEY`. The other endpoints use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
+Device endpoints need the header `Authorization: Bearer KEY`. The other endpoints use the session cookie set when signing in, and changes only accept the website's origin. Registering a passkey without a session needs `setup_code` in the body.
 
 Response of `GET /lyra/device/sensors`:
 ```json
@@ -271,13 +250,13 @@ Body of `DELETE /lyra/readings`:
 - Each file in `modules/` defines its handlers and returns its routes. New modules are added to `MODULES` in `index.php`, shared helpers live in `lib/`.
 - Broadcasts are decoded here, so a new sensor type is a file in `decoders/` plus its name in `DECODERS` in `lib/pipeline.php`. A new destination is a file in `sinks/` plus its name in `SINKS`. Neither needs a firmware update.
 - `bthome` reads BTHome v2 without encryption, like the pvvx firmware. `lyra` stores the readings here.
-- A device only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
-- Only the latest telemetry of a device is kept. Unknown telemetry fields are ignored, so newer firmware works with this API. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, `pending` and `dropped` count broadcasts waiting in or dropped from the device's queue.
-- A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the device heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
+- A source only relays its own sensors. Values that aren't in the `metrics` table are ignored, so a new kind of value only needs a row there.
+- Only the latest telemetry of a source is kept. Unknown telemetry fields are ignored, so newer firmware works with this API. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, `pending` and `dropped` count broadcasts waiting in or dropped from the source's queue.
+- A value is stored when its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so broadcasts sent late still get the right time.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, an IANA time zone that defaults to UTC.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
 - Temperatures are stored in °C. `temperature_unit` only changes how the website shows them.
 - Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`.
-- Sessions last 30 days. Session tokens, setup codes, device keys and challenges are only stored as SHA-256 hashes.
+- Sessions last 30 days. Session tokens, setup codes, source keys and challenges are only stored as SHA-256 hashes.
 - Removing a passkey ends its sessions. The last passkey can't be removed.
 - All timestamps are in UTC.

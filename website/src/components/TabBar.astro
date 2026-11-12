@@ -1,4 +1,5 @@
 ---
+import BroadcastIcon from '@phosphor-icons/core/assets/fill/broadcast-fill.svg';
 import SquaresFourIcon from '@phosphor-icons/core/assets/fill/squares-four-fill.svg';
 import ThermometerIcon from '@phosphor-icons/core/assets/fill/thermometer-simple-fill.svg';
 
@@ -12,6 +13,7 @@ const { current, variant } = Astro.props;
 const tabs = [
   { id: 'summary', label: 'Summary', href: '/', Icon: SquaresFourIcon },
   { id: 'sensors', label: 'Sensors', href: '/sensors/', Icon: ThermometerIcon },
+  { id: 'sources', label: 'Sources', href: '/sources/', Icon: BroadcastIcon },
 ];
 ---
 

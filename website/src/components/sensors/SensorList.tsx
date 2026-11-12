@@ -13,7 +13,7 @@ import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
 import AddSensor from './AddSensor';
 
-const sensorSummary = (sensor: Sensor) =>
+export const sensorSummary = (sensor: Sensor) =>
   mainMetrics(sensor.metrics.filter((metric) => metric.active && metric.latest))
     .slice(0, 3)
     .map((metric) => formatNumber(metric.latest!.value, metricStyle(metric.name).decimals) + unitText(metric.unit).trim())
