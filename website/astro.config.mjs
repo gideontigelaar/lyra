@@ -1,7 +1,11 @@
+import { createHash } from 'node:crypto';
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import tailwindcss from '@tailwindcss/vite';
 import mockApi from './mock/api.mjs';
+import { signInScript, themeScript } from './src/scripts/inline.mjs';
+
+const hash = (script) => `sha256-${createHash('sha256').update(script).digest('base64')}`;
 
 export default defineConfig({
   site: 'https://lyra.gideontigelaar.com',
@@ -12,6 +16,9 @@ export default defineConfig({
   security: {
     csp: {
       directives: ["default-src 'self'", "img-src 'self' data:", "connect-src 'self' https://api.gideontigelaar.com"],
+      scriptDirective: {
+        hashes: [themeScript, signInScript].map(hash),
+      },
     },
   },
   vite: {

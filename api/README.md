@@ -193,6 +193,7 @@ Add `--dry-run` to see what would change first. Files deleted locally are also d
 - `GET /lyra/device/sensors`: the source's sensors and how often to relay each
 - `POST /lyra/device/adverts`: relay sensor broadcasts
 - `POST /lyra/device/telemetry`: the source's own health, for troubleshooting
+- `GET /lyra/auth/setup`: whether an unused setup code is waiting, so the sign-in page can offer it
 - `POST /lyra/auth/options`: a challenge to sign in with
 - `POST /lyra/auth/login`: sign in with a passkey
 - `POST /lyra/auth/logout`: sign out

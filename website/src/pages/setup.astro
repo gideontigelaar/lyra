@@ -28,6 +28,7 @@ import { card, input, label, primaryButton } from '../lib/ui';
 <script>
   import { ApiError } from '../lib/api';
   import { passkeyError, passkeysSupported, registerPasskey } from '../lib/passkeys';
+  import { rememberSignIn } from '../lib/session';
 
   const form = document.querySelector<HTMLFormElement>('[data-setup]')!;
   const button = form.querySelector<HTMLButtonElement>('button')!;
@@ -51,6 +52,7 @@ import { card, input, label, primaryButton } from '../lib/ui';
 
     try {
       await registerPasskey(String(data.get('name')), String(data.get('code')).trim());
+      rememberSignIn();
       location.assign('/');
     } catch (e) {
       showError(e instanceof ApiError && e.status === 401 ? 'This setup code is invalid or has expired.' : passkeyError(e));

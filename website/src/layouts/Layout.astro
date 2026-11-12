@@ -3,6 +3,7 @@ import GearSixIcon from '@phosphor-icons/core/assets/fill/gear-six-fill.svg';
 import TabBar from '../components/TabBar.astro';
 import Wordmark from '../components/Wordmark.astro';
 import { iconButton } from '../lib/ui';
+import { signInScript, themeScript } from '../scripts/inline.mjs';
 import '../styles/global.css';
 
 interface Props {
@@ -28,23 +29,8 @@ const settings = Astro.url.pathname === '/settings/';
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>{title ? `${title} · Lyra` : 'Lyra'}</title>
-    <script is:inline>
-      (() => {
-        const media = window.matchMedia('(prefers-color-scheme: dark)');
-        const apply = () => {
-          let theme = null;
-          try {
-            theme = localStorage.getItem('theme');
-          } catch {}
-          const dark = theme === 'dark' || (theme !== 'light' && media.matches);
-          document.documentElement.classList.toggle('dark', dark);
-          document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#060c1d' : '#eef1f8');
-        };
-        apply();
-        media.addEventListener('change', apply);
-        window.addEventListener('themechange', apply);
-      })();
-    </script>
+    <script is:inline set:html={themeScript} />
+    {app && !import.meta.env.DEV && <script is:inline set:html={signInScript} />}
   </head>
   <body class="min-h-dvh bg-bg text-navy-950 antialiased dark:text-navy-50">
     {

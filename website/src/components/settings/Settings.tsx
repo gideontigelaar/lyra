@@ -4,6 +4,7 @@ import { formatDate, timeAgo } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
 import { passkeyError, passkeysSupported, registerPasskey, signOut } from '../../lib/passkeys';
 import type { Passkey } from '../../lib/types';
+import { forgetSignIn } from '../../lib/session';
 import { textButton } from '../../lib/ui';
 import { TEMPERATURE_UNITS, type TemperatureUnit, loadSettings } from '../../lib/units';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -79,6 +80,7 @@ export default function Settings() {
       await api(`/passkeys/${passkey.id}`, 'DELETE');
 
       if (passkey.current) {
+        forgetSignIn();
         location.assign('/login/');
         return;
       }
@@ -145,7 +147,7 @@ export default function Settings() {
         </Section>
       )}
       <Section>
-        <Row label="Sign Out" danger onClick={() => signOut().finally(() => location.assign('/login/'))} />
+        <Row label="Sign Out" danger onClick={() => signOut().finally(() => (forgetSignIn(), location.assign('/login/')))} />
       </Section>
       <TextDialog open={adding} title="Add Passkey" label="Name" value="" onClose={() => setAdding(false)} onSave={add} />
       <ConfirmDialog open={removing !== null} title={`Remove ${removing?.name}?`} confirm="Remove" busy={busy} onClose={() => setRemoving(null)} onConfirm={() => removing && remove(removing)}>

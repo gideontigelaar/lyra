@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { ApiError } from './api';
+import { forgetSignIn } from './session';
 
 export const failure = (e: unknown) => {
   if (e instanceof ApiError && e.status === 401) {
+    forgetSignIn();
     location.assign('/login/');
   }
 

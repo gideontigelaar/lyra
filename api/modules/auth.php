@@ -70,7 +70,15 @@ function log_out(): never
     respond_empty();
 }
 
+function setup_status(): never
+{
+    $stmt = get_db()->query('SELECT EXISTS (SELECT 1 FROM setup_codes WHERE expires_at > CURRENT_TIMESTAMP)');
+
+    respond(200, ['available' => (bool) $stmt->fetchColumn()]);
+}
+
 return [
+    '/auth/setup' => ['GET' => 'setup_status'],
     '/auth/options' => ['POST' => 'create_login_options'],
     '/auth/login' => ['POST' => 'log_in'],
     '/auth/logout' => ['POST' => 'log_out'],
