@@ -25,7 +25,7 @@ const { title, app = false } = Astro.props;
     <script is:inline set:html={themeScript} />
     {app && !import.meta.env.DEV && <script is:inline set:html={signInScript} />}
   </head>
-  <body class="min-h-dvh bg-bg text-navy-950 antialiased transition-colors duration-300 dark:text-navy-50">
+  <body class="min-h-dvh bg-bg text-navy-950 antialiased dark:text-navy-50">
     {
       app ? (
         <slot />

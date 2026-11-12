@@ -1,4 +1,4 @@
-import { api } from './api';
+import { ApiError, api } from './api';
 
 export const passkeysSupported = () => typeof PublicKeyCredential !== 'undefined' && 'parseRequestOptionsFromJSON' in PublicKeyCredential;
 
@@ -26,5 +26,9 @@ export const passkeyError = (error: unknown) => {
     return 'This device already has a passkey here.';
   }
 
-  return error instanceof Error ? `Something went wrong: ${error.message}.` : 'Something went wrong.';
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+
+  return error instanceof Error ? `Something went wrong: ${error.message.replace(/\.$/, '')}.` : 'Something went wrong.';
 };

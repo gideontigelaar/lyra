@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { browserName } from '../../lib/browsers';
 import { formatDate, timeAgo } from '../../lib/format';
@@ -10,6 +10,7 @@ import type { Passkey, Session } from '../../lib/types';
 import { inlineSelect, textButton } from '../../lib/ui';
 import { TEMPERATURE_UNITS } from '../../lib/units';
 import { browserZone } from '../../lib/zone';
+import { ZONES, offsetOf, placeOf } from '../../lib/zones';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
@@ -29,9 +30,12 @@ const storedTheme = (): Theme => {
   }
 };
 
-const zoneName = (zone: string) => zone.replaceAll('_', ' ');
-
-const zoneList = (saved: string | null) => [...new Set(['UTC', ...Intl.supportedValuesOf('timeZone'), ...(saved ? [saved] : [])])].sort();
+// The short list of time zones with their current offset. A saved zone that isn't on it stays pickable.
+const zoneGroups = (saved: string | null, now: number) => {
+  const groups = ZONES.map(([region, list]) => [region, list.map(([zone, place]) => ({ zone, label: `${place} (${offsetOf(zone, now)})` }))] as const);
+  const listed = ZONES.some(([, list]) => list.some(([zone]) => zone === saved));
+  return saved && !listed ? [...groups, ['Saved', [{ zone: saved, label: `${placeOf(saved)} (${offsetOf(saved, now)})` }]] as const] : groups;
+};
 
 export default function Settings() {
   const { data, error, reload } = useLoad(() => Promise.all([api<{ passkeys: Passkey[] }>('/passkeys'), loadSettings(), api<{ sessions: Session[] }>('/sessions')]));
@@ -117,11 +121,13 @@ export default function Settings() {
   };
 
   const settings = data && { ...data[1], ...changes };
+  const savedZone = settings?.time_zone ?? null;
+  const zones = useMemo(() => zoneGroups(savedZone, Date.now()), [savedZone]);
 
   return (
     <>
       <PageHeader title="Settings" />
-      <Section title="Display" footer={`Automatic follows this device's time zone, ${zoneName(browserZone())}.`}>
+      <Section title="Display" footer={`Automatic follows this device's time zone, ${placeOf(browserZone())}.`}>
         <Row
           label="Appearance"
           trailing={<Segmented compact label="Appearance" options={THEMES} value={theme} onChange={changeTheme} text={(value) => ({ auto: 'Automatic', light: 'Light', dark: 'Dark' })[value]} />}
@@ -147,10 +153,14 @@ export default function Settings() {
             settings && (
               <select aria-label="Time zone" className={inlineSelect} value={settings.time_zone ?? ''} onChange={(event) => change({ time_zone: event.target.value || null })}>
                 <option value="">Automatic</option>
-                {zoneList(settings.time_zone).map((zone) => (
-                  <option key={zone} value={zone}>
-                    {zoneName(zone)}
-                  </option>
+                {zones.map(([area, list]) => (
+                  <optgroup key={area} label={area}>
+                    {list.map(({ zone, label }) => (
+                      <option key={zone} value={zone}>
+                        {label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             )
@@ -169,7 +179,8 @@ export default function Settings() {
                 <>
                   <span className="block truncate">{passkey.name}</span>
                   <span className="block truncate text-[13px] text-muted">
-                    {passkey.current ? 'This device' : passkey.last_used_at ? `Used ${timeAgo(passkey.last_used_at, now)}` : 'Never used'} · added {formatDate(Date.parse(passkey.created_at), 'date')}
+                    {passkey.current ? 'Used to sign in here' : passkey.last_used_at ? `Used ${timeAgo(passkey.last_used_at, now)}` : 'Never used'} · added{' '}
+                    {formatDate(Date.parse(passkey.created_at), 'date')}
                   </span>
                 </>
               }
@@ -200,7 +211,13 @@ export default function Settings() {
               }
               trailing={
                 !session.current && (
-                  <button type="button" className={`${textButton} text-[15px] text-danger`} disabled={ending !== null} onClick={() => endSession(session)}>
+                  <button
+                    type="button"
+                    aria-label={`Sign out ${browserName(session.user_agent)}`}
+                    className={`${textButton} text-[15px] text-danger`}
+                    disabled={ending !== null}
+                    onClick={() => endSession(session)}
+                  >
                     Sign Out
                   </button>
                 )
@@ -214,7 +231,7 @@ export default function Settings() {
       </Section>
       <TextDialog open={adding} title="Add Passkey" label="Name" value="" onClose={() => setAdding(false)} onSave={add} />
       <ConfirmDialog open={removing !== null} title={`Remove ${removing?.name}?`} confirm="Remove" busy={busy} onClose={() => setRemoving(null)} onConfirm={() => removing && remove(removing)}>
-        {removing?.current ? 'You signed in with this passkey, so this device is signed out.' : "It can't be used to sign in anymore."}
+        {removing?.current ? "You signed in here with this passkey, so you're signed out here too." : "It can't be used to sign in anymore."}
       </ConfirmDialog>
     </>
   );

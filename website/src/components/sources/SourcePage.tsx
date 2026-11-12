@@ -24,6 +24,8 @@ export default function SourcePage({ params }: { params: Params }) {
   const id = Number(params.id);
   const { data, error, reload } = useLoad(() => Promise.all([api<{ devices: Device[] }>('/devices'), loadSensors(), displayUnit('°C')]));
   const [dialog, setDialog] = useState<'rename' | 'assign' | 'key' | 'remove' | null>(null);
+  const [chosen, setChosen] = useState<number[]>([]);
+  const [moving, setMoving] = useState(false);
   const [key, setKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -55,6 +57,28 @@ export default function SourcePage({ params }: { params: Params }) {
 
   const sensors = data[1];
   const assigned = sensors.filter((sensor) => sensor.device === id);
+  const sourceOf = (device: number | null) => data[0].devices.find((item) => item.id === device && item.id !== id);
+  // Sensors picked here that another source relays now.
+  const moves = sensors.filter((sensor) => chosen.includes(sensor.id) && sourceOf(sensor.device));
+
+  const choose = () => {
+    setChosen(assigned.map((sensor) => sensor.id));
+    setDialog('assign');
+  };
+
+  const saveChoice = () =>
+    run(async () => {
+      for (const sensor of sensors) {
+        const picked = chosen.includes(sensor.id);
+
+        if (picked !== (sensor.device === id)) {
+          await api(`/sensors/${sensor.id}`, 'PATCH', { device: picked ? id : null });
+        }
+      }
+
+      setMoving(false);
+      setDialog(null);
+    });
 
   return (
     <>
@@ -64,7 +88,7 @@ export default function SourcePage({ params }: { params: Params }) {
         {assigned.map((sensor) => (
           <Row key={sensor.id} href={sensorPath(sensor.id)} label={sensor.name} detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>} />
         ))}
-        <Row label={<span className="text-accent">Choose Sensors…</span>} onClick={() => setDialog('assign')} />
+        <Row label={<span className="text-accent">Choose Sensors…</span>} onClick={choose} />
       </Section>
       <Section title="Options" footer="While Active is off, everything this source sends is rejected. Its key and sensors are kept.">
         <Row label="Active" trailing={<Switch label="Active" checked={device.active} onChange={(active) => run(() => api(`/devices/${id}`, 'PATCH', { active }))} />} />
@@ -78,18 +102,20 @@ export default function SourcePage({ params }: { params: Params }) {
       <Dialog open={dialog === 'assign'} title="Choose Sensors" onClose={() => setDialog(null)}>
         <div className={`${group} divide-y divide-line`}>
           {sensors.map((sensor) => {
-            const here = sensor.device === id;
-            const elsewhere = data[0].devices.find((item) => item.id === sensor.device && item.id !== id);
+            const picked = chosen.includes(sensor.id);
+            const elsewhere = sourceOf(sensor.device);
             return (
               <button
                 key={sensor.id}
                 type="button"
-                aria-pressed={here}
-                disabled={busy}
-                onClick={() => run(() => api(`/sensors/${sensor.id}`, 'PATCH', { device: here ? null : id }))}
+                aria-pressed={picked}
+                onClick={() => setChosen(picked ? chosen.filter((item) => item !== sensor.id) : [...chosen, sensor.id])}
                 className={`${row} ${pressable}`}
               >
-                {here ? <CheckCircleIcon weight="fill" className="size-6 shrink-0 text-accent" aria-hidden="true" /> : <CircleIcon className="size-6 shrink-0 text-muted/60" aria-hidden="true" />}
+                <span className="grid size-6 shrink-0" aria-hidden="true">
+                  <CircleIcon className={`col-start-1 row-start-1 size-6 text-muted/60 transition duration-200 ${picked ? 'opacity-0' : ''}`} />
+                  <CheckCircleIcon weight="fill" className={`col-start-1 row-start-1 size-6 text-accent transition duration-200 ${picked ? '' : 'scale-50 opacity-0'}`} />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[17px]">{sensor.name}</span>
                   {elsewhere && <span className="block truncate text-[13px] text-muted">Now on {elsewhere.name}</span>}
@@ -98,10 +124,21 @@ export default function SourcePage({ params }: { params: Params }) {
             );
           })}
         </div>
-        <button type="button" className={`${primaryButton} mt-6 w-full`} onClick={() => setDialog(null)}>
-          Done
+        <button type="button" className={`${primaryButton} mt-6 w-full`} disabled={busy} onClick={() => (moves.length ? setMoving(true) : saveChoice())}>
+          Save
         </button>
       </Dialog>
+      <ConfirmDialog
+        open={moving}
+        title={moves.length === 1 ? `Move ${moves[0].name}?` : `Move ${moves.length} sensors?`}
+        confirm="Move"
+        busy={busy}
+        onClose={() => setMoving(false)}
+        onConfirm={saveChoice}
+      >
+        {moves.map((sensor) => `${sensor.name} is relayed by ${sourceOf(sensor.device)?.name} now.`).join(' ')} {moves.length === 1 ? 'It moves' : 'They move'} to {device.name}, and only {device.name}{' '}
+        picks {moves.length === 1 ? 'it' : 'them'} up from then on.
+      </ConfirmDialog>
       <TextDialog
         open={dialog === 'rename'}
         title="Rename Source"

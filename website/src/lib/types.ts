@@ -66,11 +66,21 @@ export interface Point {
   avg: number;
 }
 
-export type Card =
-  | { type: 'metric'; size: 'small' | 'large'; sensor: number; metric: string }
-  | { type: 'sensor'; size: 'small' | 'large'; sensor: number; metric: null; metrics: string[] }
-  | { type: 'combined'; size: 'small' | 'large'; sensor: null; metric: string; sensors: number[] }
-  | { type: 'batteries'; size: 'small' | 'large'; sensor: null; metric: null; sensors: number[] };
+// A card's spot on the summary grid per column count, as [x, y].
+export type Spots = { 2?: [number, number]; 4?: [number, number] };
+
+interface CardBase {
+  size: 'small' | 'large';
+  at?: Spots;
+}
+
+export type Card = CardBase &
+  (
+    | { type: 'metric'; sensor: number; metric: string; graph: boolean }
+    | { type: 'sensor'; sensor: number; metric: null; metrics: string[]; graph: boolean }
+    | { type: 'combined'; sensor: null; metric: string; sensors: number[]; graph: boolean }
+    | { type: 'batteries'; sensor: null; metric: null; sensors: number[] }
+  );
 
 export interface Passkey {
   id: number;

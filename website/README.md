@@ -26,12 +26,14 @@ Add `--dry-run` first to see what would change. Files deleted locally are delete
 - The app is one React page that switches views without reloading, see `src/components/App.tsx`. Addresses read like `/sensors/1/temperature/data/`. Everything under `/sensors/` and `/sources/` is served by that section's page, through `FallbackResource` in `public/sensors/.htaccess` and `public/sources/.htaccess` on the server and a small plugin in `astro.config.mjs` in development.
 - Signing in uses passkeys and only works on the live site. The first passkey needs a setup code, see the [API README](../api/README.md). The sign-in page only shows that option while a code is waiting.
 - The browser remembers that it's signed in, so signed-out visitors land on the sign-in page without the dashboard flashing first.
-- Settings has the theme, °C or °F, the time zone, passkeys and sessions. Units and time zone are saved per account, and the time zone can follow the device.
-- Summary shows the cards you add: a sensor with all its values, one value, the average of a value over up to 3 sensors, or the batteries of up to 6. Change those limits in `MAX_SENSORS` in `src/lib/cards.ts`. In edit mode you drag to reorder, resize with the corner handle, remove with the minus and add with the plus. Undo and Redo step through the changes.
+- Settings has the theme, °C or °F, the time zone, passkeys and sessions. Units and time zone are saved per account. The time zone follows the device, or one from the short list in `src/lib/zones.ts`.
+- Summary shows the cards you add: one value, a combined card with 2 to 6 values of a sensor, the average of a value over up to 3 sensors, or the batteries of up to 6 sensors. Change those limits in `MAX_PER_CARD` in `src/lib/cards.ts`.
+- Cards can sit anywhere on the grid, gaps included, with a layout of their own for 2 and 4 columns. In edit mode a mouse drags a card straight away and a finger holds it a moment first. An outline shows where it lands, and cards in the way move aside. The corner button resizes, the minus removes, the plus adds, and tapping a card changes what it shows and whether it has a graph. Undo and Redo step through the changes.
 - Without saved cards, Summary has a card per value for a single sensor, or a card per sensor when there are more. Above the cards it only lists what needs attention: an offline source, a sensor that went quiet or a low battery.
 - A sensor's page has a chart of the chosen value per hour, day, week, month, 6 months or year. The line is the average and the band runs from lowest to highest. All Recorded Data lists days or single readings, and can delete them.
 - A source's Diagnostics show the health it reports every 5 minutes.
 - `src/lib/metrics.ts` sets each value's label, icon, decimals and colour. Battery only shows outside a sensor's page and the Batteries card when it's low, battery voltage only under a sensor's Details.
-- Animations only use Tailwind's own utilities.
+- Animations only use Tailwind's own utilities. Changing the theme crossfades the page with a view transition where the browser has one.
+- Errors show as alerts floating at the top, see `src/lib/toast.ts`. The page itself only says when something is loading or empty.
 - The wordmark is Bricolage Grotesque turned into outlines, so no font gets loaded. Text uses the system font.
 - Search engines are asked not to index it.

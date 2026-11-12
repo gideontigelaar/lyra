@@ -1,9 +1,11 @@
-import { useSortable } from '@dnd-kit/sortable';
+import { useDraggable } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, MinusIcon, WarningCircleIcon } from '@phosphor-icons/react';
+import { type CSSProperties, type KeyboardEvent } from 'react';
 import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
 import { clockTime, formatNumber, unitText } from '../../lib/format';
 import { batteryLevel, hasBattery, lowBattery, metricStyle } from '../../lib/metrics';
+import type { Spot } from '../../lib/grid';
 import type { Card, Point, Sensor } from '../../lib/types';
 import { card as cardClass, pressable } from '../../lib/ui';
 import MetricChip from '../MetricChip';
@@ -18,11 +20,21 @@ interface Props {
   sparks: Record<string, Spark>;
   now: number;
   editing: boolean;
+  // A removed card fading out. It's gone from the cards already, so Undo and Done see the change straight away.
+  leaving?: boolean;
+  spot: Spot;
   onRemove: () => void;
   onResize: () => void;
+  onEdit: () => void;
 }
 
-const cardName = (card: Card, sensors: Sensor[]) => {
+// Cards are placed on the grid of Summary, which sets --cell and --gap. Spots change through transitions, so moves and resizes slide.
+export const PLACE =
+  'absolute top-0 left-0 h-[calc(var(--h)*var(--cell)_+_(var(--h)_-_1)*var(--gap))] w-[calc(var(--w)*var(--cell)_+_(var(--w)_-_1)*var(--gap))] translate-x-[calc(var(--x)*(var(--cell)_+_var(--gap)))] translate-y-[calc(var(--y)*(var(--cell)_+_var(--gap)))]';
+
+export const spotStyle = ({ x, y, w, h }: Spot) => ({ '--x': x, '--y': y, '--w': w, '--h': h }) as CSSProperties;
+
+export const cardName = (card: Card, sensors: Sensor[]) => {
   if (card.type === 'batteries') {
     return 'Batteries';
   }
@@ -80,7 +92,7 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
     .map((reading) => reading.measured_at)
     .sort()
     .at(-1);
-  const spark = averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)]));
+  const spark = card.type !== 'batteries' && card.graph ? averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)])) : undefined;
   const combined = card.type === 'combined';
   const unit = values[0]?.metric.unit ?? '';
 
@@ -97,7 +109,8 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
           />
         </div>
       </div>
-      <div className="mt-3 flex items-baseline gap-3">
+      {spark ? <Sparkline {...spark} color={style.color} className="mt-3 min-h-8 w-full flex-1" /> : <div className="flex-1" />}
+      <div className="mt-2 flex items-baseline gap-3">
         <MetricValue metric={name} value={value} unit={unit} size={large ? 'huge' : 'large'} />
         {combined && large && numbers.length > 1 && (
           <span className="truncate text-[13px] text-muted">
@@ -106,7 +119,6 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
           </span>
         )}
       </div>
-      {spark && <Sparkline {...spark} color={style.color} className="mt-3 min-h-8 w-full flex-1" />}
     </>
   );
 }
@@ -128,8 +140,9 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
     .at(-1);
   const size = large ? (rows.length === 1 ? 'large' : 'medium') : values.length <= 2 ? 'large' : values.length <= 3 ? 'medium' : 'small';
 
-  // On a large card a value under 8rem wide gets its chip above it, a small card only has room for chips with one value per row.
-  // Two rows only have room for graphs on wider, so taller, cards.
+  const graphs = large && card.type === 'sensor' && card.graph;
+
+  // A value's graph sits above it. Its chip only shows when the value has 7.5rem, and two rows only have room for graphs on wider, so taller, cards.
   return (
     <>
       <Header title={sensor.name} time={newest ? clockTime(newest, now) : null} large={large} />
@@ -139,14 +152,16 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
             <div key={i} className="flex min-h-0 flex-1 gap-3">
               {row.map(({ metric }) => {
                 const style = metricStyle(metric.name);
-                const spark = large ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
+                const spark = graphs ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
                 return (
                   <div key={metric.name} className="@container flex min-h-0 min-w-0 flex-1 flex-col justify-end">
-                    <div className={`flex ${large ? 'flex-col items-start gap-1 @[8rem]:flex-row @[8rem]:items-center @[8rem]:gap-2' : 'items-center gap-2'}`}>
-                      {(large || row.length === 1) && <MetricChip metric={metric.name} small />}
+                    {spark && <Sparkline {...spark} color={style.color} className={`mb-2 w-full flex-1 ${rows.length === 1 ? 'min-h-5' : 'hidden min-h-4 @[24rem]/card:block'}`} />}
+                    <div className="flex items-center gap-2">
+                      <span className="hidden @[7.5rem]:block">
+                        <MetricChip metric={metric.name} small />
+                      </span>
                       <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} />
                     </div>
-                    {spark && <Sparkline {...spark} color={style.color} className={`mt-2 w-full flex-1 ${rows.length === 1 ? 'min-h-5' : 'hidden min-h-4 @[24rem]/card:block'}`} />}
                   </div>
                 );
               })}
@@ -205,24 +220,40 @@ function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteri
 }
 
 export default function SummaryCard(props: Props) {
-  const { card, sensors, editing, onRemove, onResize } = props;
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: cardKey(card), disabled: !editing });
+  const { card, sensors, editing, leaving = false, spot, onRemove, onResize, onEdit } = props;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: cardKey(card), disabled: !editing || leaving });
   const name = cardName(card, sensors);
   const body = card.type === 'sensor' ? <SensorBody {...props} /> : card.type === 'batteries' ? <BatteriesBody card={card} sensors={sensors} /> : <ValueBody {...props} />;
   const surface = `${cardClass} flex h-full flex-col overflow-hidden p-4`;
+  const control = `absolute flex size-7 items-center justify-center rounded-full shadow-md transition duration-200 ease-out ${editing ? '' : 'scale-50 opacity-0'}`;
+
+  // Space picks a card up to move it with the arrow keys, Enter opens its settings.
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' && !isDragging) {
+      event.preventDefault();
+      onEdit();
+    } else {
+      listeners?.onKeyDown?.(event);
+    }
+  };
 
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={`@container/card relative ${card.size === 'large' ? 'col-span-2' : 'col-span-1'} ${isDragging ? 'z-10' : ''}`}
+      inert={leaving}
+      style={{ ...spotStyle(spot), transform: CSS.Translate.toString(transform) }}
+      className={`${PLACE} @container/card rounded-2xl duration-300 ease-out ${leaving ? 'starting:scale-100 starting:opacity-100' : 'starting:scale-95 starting:opacity-0'} ${
+        isDragging ? 'z-20 shadow-xl transition-[width,height,scale,box-shadow]' : 'transition-[translate,transform,width,height,scale,opacity,box-shadow]'
+      } ${leaving ? 'scale-75 opacity-0' : isDragging ? 'scale-[1.03]' : editing ? 'scale-[0.97] ring-2 ring-accent/30' : ''}`}
     >
       {editing ? (
         <div
           {...attributes}
           {...listeners}
-          aria-label={`${name}, reorder`}
-          className={`${surface} cursor-grab touch-none ring-2 ring-accent/30 ${isDragging ? 'scale-[1.02] cursor-grabbing shadow-xl' : 'scale-[0.97]'}`}
+          onKeyDown={onKeyDown}
+          onClick={onEdit}
+          aria-label={name}
+          className={`${surface} cursor-grab touch-manipulation select-none [-webkit-touch-callout:none] ${isDragging ? 'cursor-grabbing' : ''}`}
         >
           {body}
         </div>
@@ -231,26 +262,18 @@ export default function SummaryCard(props: Props) {
           {body}
         </a>
       )}
-      {editing && (
-        <>
-          <button
-            type="button"
-            onClick={onRemove}
-            aria-label={`Remove ${name}`}
-            className="absolute -top-2 -left-2 flex size-7 items-center justify-center rounded-full bg-navy-400 text-white shadow-md transition duration-200 ease-out starting:scale-50 starting:opacity-0 dark:bg-navy-600"
-          >
-            <MinusIcon weight="bold" className="size-4" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            onClick={onResize}
-            aria-label={`${card.size === 'small' ? 'Enlarge' : 'Shrink'} ${name}`}
-            className="absolute -right-2 -bottom-2 flex size-7 items-center justify-center rounded-full bg-surface text-navy-950 shadow-md ring-1 ring-line transition duration-200 ease-out starting:scale-50 starting:opacity-0 dark:text-navy-50"
-          >
-            {card.size === 'small' ? <ArrowsOutSimpleIcon weight="bold" className="size-4" aria-hidden="true" /> : <ArrowsInSimpleIcon weight="bold" className="size-4" aria-hidden="true" />}
-          </button>
-        </>
-      )}
+      <button type="button" inert={!editing} onClick={onRemove} aria-label={`Remove ${name}`} className={`${control} -top-2 -left-2 bg-navy-400 text-white dark:bg-navy-600`}>
+        <MinusIcon weight="bold" className="size-4" aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        inert={!editing}
+        onClick={onResize}
+        aria-label={`${card.size === 'small' ? 'Enlarge' : 'Shrink'} ${name}`}
+        className={`${control} -right-2 -bottom-2 bg-surface text-navy-950 ring-1 ring-line dark:text-navy-50`}
+      >
+        {card.size === 'small' ? <ArrowsOutSimpleIcon weight="bold" className="size-4" aria-hidden="true" /> : <ArrowsInSimpleIcon weight="bold" className="size-4" aria-hidden="true" />}
+      </button>
     </div>
   );
 }

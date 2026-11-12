@@ -31,18 +31,20 @@ export default function MetricChart({ sensor, metric }: Props) {
   const style = metricStyle(metric.name);
   const [period, setPeriod] = useState(storedPeriod);
   const [start, setStart] = useState(() => periods[storedPeriod()].start(new Date()));
-  const [points, setPoints] = useState<Point[] | null>(null);
-  const [edges, setEdges] = useState<{ before?: Point; after?: Point }>({});
+  const [loaded, setLoaded] = useState<{ key: string; points: Point[]; before?: Point; after?: Point } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const config = periods[period];
   const end = config.shift(start, 1);
   const now = new Date();
+  // Readings only show on the period they were loaded for, so the new axes never draw the last period's readings.
+  const key = `${metric.name}:${period}:${start.getTime()}`;
+  const data = loaded?.key === key ? loaded : null;
+  const points = data?.points ?? null;
 
   useEffect(() => {
     let current = true;
     setSelected(null);
-    setPoints(null);
 
     // One bucket on each side, so the line can continue to the chart's edges.
     const margin = { raw: 3 * HOUR, hour: HOUR, day: 25 * HOUR, week: 8 * 24 * HOUR, month: 32 * 24 * HOUR }[config.bucket];
@@ -50,8 +52,12 @@ export default function MetricChart({ sensor, metric }: Props) {
     fetchPoints(sensor, metric.name, start.getTime() - margin, end.getTime() + margin, config.bucket).then(
       (result) => {
         if (current) {
-          setPoints(result.filter((point) => point.time >= start.getTime() && point.time < end.getTime()));
-          setEdges({ before: result.findLast((point) => point.time < start.getTime()), after: result.find((point) => point.time >= end.getTime()) });
+          setLoaded({
+            key,
+            points: result.filter((point) => point.time >= start.getTime() && point.time < end.getTime()),
+            before: result.findLast((point) => point.time < start.getTime()),
+            after: result.find((point) => point.time >= end.getTime()),
+          });
           setError(null);
         }
       },
@@ -61,7 +67,7 @@ export default function MetricChart({ sensor, metric }: Props) {
     return () => {
       current = false;
     };
-  }, [metric.name, period, start.getTime()]);
+  }, [key]);
 
   const changePeriod = (next: PeriodId) => {
     setPeriod(next);
@@ -109,9 +115,10 @@ export default function MetricChart({ sensor, metric }: Props) {
       </div>
       <div className="mt-4">
         <RangeChart
+          id={key}
           points={points ?? []}
-          before={edges.before}
-          after={edges.after}
+          before={data?.before}
+          after={data?.after}
           start={start.getTime()}
           end={end.getTime()}
           slots={slots}

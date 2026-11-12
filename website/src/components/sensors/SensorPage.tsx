@@ -1,4 +1,3 @@
-import { CopyIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useState } from 'react';
 import { api } from '../../lib/api';
 import { cardKey } from '../../lib/cards';
@@ -15,6 +14,7 @@ import { card as cardClass, inlineSelect, pressable, row } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import MetricValue from '../MetricValue';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import { CopyMark, CopyText, useCopy } from '../ui/Copy';
 import Fold from '../ui/Fold';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
@@ -37,7 +37,7 @@ export default function SensorPage({ params }: { params: Params }) {
   });
   const [pins, setPins] = useState<Card[] | null>(null);
   const [chosen, setChosen] = useState(params.metric);
-  const [copied, setCopied] = useState(false);
+  const { copied, copy } = useCopy();
   const [renaming, setRenaming] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -80,7 +80,7 @@ export default function SensorPage({ params }: { params: Params }) {
   const values = dataMetrics(metrics);
   const shown = values.find((metric) => metric.name === chosen) ?? values[0];
   const currentPins = pins ?? data.pins;
-  const card: Card | null = shown ? { type: 'metric', size: 'small', sensor: id, metric: shown.name } : null;
+  const card: Card | null = shown ? { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true } : null;
   const pinned = card !== null && currentPins.some((item) => cardKey(item) === cardKey(card));
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
   const now = Date.now();
@@ -103,16 +103,6 @@ export default function SensorPage({ params }: { params: Params }) {
   // Up to 3 tiles side by side, then rows of 2 or 3 where the last row stretches, so no tile sits alone next to a gap.
   const perRow = values.length <= 3 ? values.length : values.length === 4 ? 2 : 3;
   const narrow = perRow > 2;
-
-  const copyAddress = async () => {
-    try {
-      await navigator.clipboard.writeText(sensor.address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Without clipboard access the address stays on screen to copy by hand.
-    }
-  };
 
   const choose = (name: string) => {
     setChosen(name);
@@ -225,13 +215,12 @@ export default function SensorPage({ params }: { params: Params }) {
             }
           />
           <Row label="Type" detail={data.decoders.find((item) => item.name === sensor.decoder)?.label ?? sensor.decoder} />
-          <button type="button" className={`${row} ${pressable}`} onClick={copyAddress}>
+          <button type="button" className={`${row} ${pressable}`} onClick={() => copy(sensor.address)}>
             <span className="min-w-0 flex-1 text-[17px]">MAC address</span>
-            <span aria-live="polite" className="text-[13px] font-semibold text-accent">
-              {copied ? 'Copied' : ''}
+            <CopyText text={sensor.address} copied={copied} className="font-mono text-[15px] text-muted" />
+            <span className="text-muted/70">
+              <CopyMark copied={copied} />
             </span>
-            <span className="font-mono text-[15px] text-muted">{sensor.address}</span>
-            <CopyIcon weight="bold" className="size-4 shrink-0 text-muted/70" aria-hidden="true" />
           </button>
           {detailMetrics(metrics).map((metric) => (
             <Row

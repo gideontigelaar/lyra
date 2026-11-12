@@ -13,7 +13,7 @@ import { card, primaryButton, secondaryButton } from '../lib/ui';
       <KeyIcon class="size-5" aria-hidden="true" />
       Sign in with a passkey
     </button>
-    <p class="mt-3 text-[15px] text-danger" role="alert" hidden data-error></p>
+    <p class="mt-3 text-[15px] text-muted" hidden data-unsupported>This browser is too old for passkey sign-in. Update it or use another browser.</p>
     <button type="button" class:list={[secondaryButton, 'mt-3 w-full py-3 text-[17px]']} data-demo>Try the demo</button>
     <p class="mt-6 text-[15px] text-muted" hidden data-setup>First time here? <a href="/setup/" class="font-semibold text-accent">Use a setup code</a></p>
   </div>
@@ -23,9 +23,9 @@ import { card, primaryButton, secondaryButton } from '../lib/ui';
   import { ApiError, api } from '../lib/api';
   import { passkeyError, passkeysSupported, signIn } from '../lib/passkeys';
   import { endDemo, rememberSignIn, startDemo } from '../lib/session';
+  import { showError } from '../lib/toast';
 
   const button = document.querySelector<HTMLButtonElement>('[data-sign-in]')!;
-  const error = document.querySelector<HTMLElement>('[data-error]')!;
   const setup = document.querySelector<HTMLElement>('[data-setup]')!;
 
   api<{ available: boolean }>('/auth/setup').then(
@@ -33,14 +33,9 @@ import { card, primaryButton, secondaryButton } from '../lib/ui';
     () => {},
   );
 
-  const showError = (message: string) => {
-    error.textContent = message;
-    error.hidden = false;
-  };
-
   if (!passkeysSupported()) {
     button.disabled = true;
-    showError('This browser is too old for passkey sign-in. Update it or use another browser.');
+    document.querySelector<HTMLElement>('[data-unsupported]')!.hidden = false;
   }
 
   document.querySelector('[data-demo]')!.addEventListener('click', () => {
@@ -50,7 +45,6 @@ import { card, primaryButton, secondaryButton } from '../lib/ui';
 
   button.addEventListener('click', async () => {
     button.disabled = true;
-    error.hidden = true;
 
     try {
       await signIn();

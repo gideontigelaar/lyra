@@ -61,6 +61,14 @@
   --status-warning: #f5b031;
 }
 
+/* Tailwind's preflight gives buttons the default cursor. Its upgrade guide restores the pointer like this. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,

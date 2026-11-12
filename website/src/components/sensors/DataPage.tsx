@@ -43,6 +43,7 @@ export default function DataPage({ params }: { params: Params }) {
   const { data } = useLoad(loadSensors);
   const [items, setItems] = useState<Item[]>([]);
   const [windowEnd, setWindowEnd] = useState(() => (date ? startOfDay(date, 1) : startOfDay(Date.now(), 1)));
+  const [version, setVersion] = useState(0);
   const [exhausted, setExhausted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +81,7 @@ export default function DataPage({ params }: { params: Params }) {
     return () => {
       current = false;
     };
-  }, [windowEnd.getTime()]);
+  }, [windowEnd.getTime(), version]);
 
   const restart = () => {
     setItems([]);
@@ -88,6 +89,7 @@ export default function DataPage({ params }: { params: Params }) {
     setEditing(false);
     setExhausted(false);
     setWindowEnd(date ? startOfDay(date, 1) : startOfDay(Date.now(), 1));
+    setVersion((v) => v + 1);
   };
 
   const remove = async () => {

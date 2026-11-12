@@ -19,7 +19,7 @@ import { card, input, label, primaryButton } from '../lib/ui';
         <KeyIcon class="size-5" aria-hidden="true" />
         Create passkey
       </button>
-      <p class="mt-3 text-[15px] text-danger" role="alert" hidden data-error></p>
+      <p class="mt-3 text-[15px] text-muted" hidden data-unsupported>This browser is too old to create a passkey. Update it or use another browser.</p>
       <p class="mt-6 text-center text-[15px] text-muted">Already have a passkey? <a href="/login/" class="font-semibold text-accent">Sign in</a></p>
     </form>
   </div>
@@ -29,25 +29,19 @@ import { card, input, label, primaryButton } from '../lib/ui';
   import { ApiError } from '../lib/api';
   import { passkeyError, passkeysSupported, registerPasskey } from '../lib/passkeys';
   import { rememberSignIn } from '../lib/session';
+  import { showError } from '../lib/toast';
 
   const form = document.querySelector<HTMLFormElement>('[data-setup]')!;
   const button = form.querySelector<HTMLButtonElement>('button')!;
-  const error = form.querySelector<HTMLElement>('[data-error]')!;
-
-  const showError = (message: string) => {
-    error.textContent = message;
-    error.hidden = false;
-  };
 
   if (!passkeysSupported()) {
     button.disabled = true;
-    showError('This browser is too old to create a passkey. Update it or use another browser.');
+    form.querySelector<HTMLElement>('[data-unsupported]')!.hidden = false;
   }
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     button.disabled = true;
-    error.hidden = true;
     const data = new FormData(form);
 
     try {

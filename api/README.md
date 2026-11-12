@@ -139,12 +139,10 @@ Takes the sensor broadcasts the boards relay, decodes them, stores the readings 
        ('temperature', '°C', 900),
        ('humidity', '%', 900),
        ('battery', '%', 3600),
-       ('voltage', 'V', 3600),
-       ('pressure', 'hPa', 900),
-       ('illuminance', 'lx', 900),
-       ('dew_point', '°C', 900),
-       ('co2', 'ppm', 900);
+       ('voltage', 'V', 3600);
    ```
+
+   These are the values the pvvx firmware sends. `bthome` also reads `pressure` (hPa), `illuminance` (lx), `dew_point` (°C) and `co2` (ppm): add a row once a sensor sends one of those.
 
 ## Credentials
 Copy the template to the server, from the root of the repository:

@@ -5,6 +5,8 @@ import type { Point } from '../../lib/types';
 import { curve } from './curve';
 
 interface Props {
+  // Changes with the period shown, so its readings fade in.
+  id: string;
   points: Point[];
   before?: Point;
   after?: Point;
@@ -38,7 +40,7 @@ const scale = (points: Point[]) => {
   return { min, max, ticks: Array.from({ length: Math.round((max - min) / step) + 1 }, (_, i) => min + i * step), step };
 };
 
-export default function RangeChart({ points, before, after, start, end, slots, ticks, color, decimals, label, selected, onSelect }: Props) {
+export default function RangeChart({ id, points, before, after, start, end, slots, ticks, color, decimals, label, selected, onSelect }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(0);
 
@@ -131,14 +133,16 @@ export default function RangeChart({ points, before, after, start, end, slots, t
           <clipPath id={clip}>
             <rect x={0} y={0} width={plotWidth} height={HEIGHT} />
           </clipPath>
-          {segments.map((indexes) => (
-            <g key={all[indexes[0]].time} clipPath={`url(#${clip})`}>
-              <path d={`${path(indexes, (point) => point.max)}${path([...indexes].reverse(), (point) => point.min).replace('M', 'L')}Z`} style={{ fill: color, fillOpacity: 0.16 }} />
-              <path d={path(indexes, (point) => point.avg)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: color }} />
-              {(indexes.length === 1 || !slots.length) &&
-                indexes.filter(inside).map((i) => <circle key={i} cx={allCenters[i]} cy={yPos(all[i].avg)} r={indexes.length === 1 ? 4 : 2.5} style={{ fill: color }} />)}
-            </g>
-          ))}
+          <g key={id} className="transition-opacity duration-300 ease-out starting:opacity-0">
+            {segments.map((indexes) => (
+              <g key={all[indexes[0]].time} clipPath={`url(#${clip})`}>
+                <path d={`${path(indexes, (point) => point.max)}${path([...indexes].reverse(), (point) => point.min).replace('M', 'L')}Z`} style={{ fill: color, fillOpacity: 0.16 }} />
+                <path d={path(indexes, (point) => point.avg)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: color }} />
+                {(indexes.length === 1 || !slots.length) &&
+                  indexes.filter(inside).map((i) => <circle key={i} cx={allCenters[i]} cy={yPos(all[i].avg)} r={indexes.length === 1 ? 4 : 2.5} style={{ fill: color }} />)}
+              </g>
+            ))}
+          </g>
           {selected !== null && centers[selected] !== undefined && (
             <>
               <line x1={centers[selected]} x2={centers[selected]} y1={TOP} y2={TOP + plotHeight} className="stroke-muted" strokeWidth={1} />

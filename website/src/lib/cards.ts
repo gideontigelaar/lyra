@@ -1,6 +1,6 @@
 import { dataMetrics, hasBattery, mainMetrics, metricStyle } from './metrics';
 import { sensorPath } from './paths';
-import type { Card, Sensor, SensorMetric } from './types';
+import type { Card, Sensor, SensorMetric, Spots } from './types';
 
 // The most a card holds: values on a sensor card, sensors on a batteries or combined card.
 export const MAX_PER_CARD = { sensor: 6, batteries: 6, combined: 3 };
@@ -28,7 +28,17 @@ export const sensorValues = (sensor: Sensor) =>
     .map((metric) => metric.name)
     .slice(0, MAX_PER_CARD.sensor);
 
-export const cardHref = (card: Card) => (card.type === 'batteries' || card.type === 'combined' ? '/sensors/' : sensorPath(card.sensor, card.type === 'metric' ? card.metric : undefined));
+// A card opens its sensor, on its value when it shows one. A batteries card of one sensor opens that sensor's battery.
+export const cardHref = (card: Card) => {
+  switch (card.type) {
+    case 'batteries':
+      return card.sensors.length === 1 ? sensorPath(card.sensors[0], 'battery') : '/sensors/';
+    case 'combined':
+      return '/sensors/';
+    default:
+      return sensorPath(card.sensor, card.type === 'metric' ? card.metric : undefined);
+  }
+};
 
 export const sparkKey = (sensor: number, metric: string) => `${sensor}:${metric}`;
 
@@ -61,32 +71,50 @@ export const defaultCards = (sensors: Sensor[]): Card[] => {
   const metrics = sensors.length === 1 ? mainMetrics(sensors[0].metrics.filter((metric) => metric.active)) : [];
 
   return metrics.length
-    ? metrics.map((metric) => ({ type: 'metric', size: 'large', sensor: sensors[0].id, metric: metric.name }))
-    : sensors.map((sensor) => ({ type: 'sensor', size: 'large', sensor: sensor.id, metric: null, metrics: sensorValues(sensor) }));
+    ? metrics.map((metric) => ({ type: 'metric', size: 'large', sensor: sensors[0].id, metric: metric.name, graph: true }))
+    : sensors.map((sensor) => ({ type: 'sensor', size: 'large', sensor: sensor.id, metric: null, metrics: sensorValues(sensor), graph: true }));
 };
 
 const has = (sensors: Sensor[], id: unknown, metric: unknown) => sensors.some((sensor) => sensor.id === id && sensor.metrics.some((item) => item.name === metric));
 
-// The sensors of a batteries or combined card that still exist and have the value, if at least 2 are left.
-const members = (ids: unknown, metric: string, max: number, sensors: Sensor[]) => {
+// The sensors of a batteries or average card that still exist and have the value, if enough are left.
+const members = (ids: unknown, metric: string, min: number, max: number, sensors: Sensor[]) => {
   const list = [...new Set(Array.isArray(ids) ? ids : [])].filter((id) => has(sensors, id, metric)).slice(0, max);
-  return list.length >= 2 ? list : null;
+  return list.length >= min ? list : null;
 };
 
-const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names }: Record<string, unknown>, sensors: Sensor[]): Card | null => {
+// Spots must be whole cells inside the grid. Others are dropped, and the card flows in after the rest.
+const spotsOf = (value: unknown, size: 'small' | 'large'): Spots | undefined => {
+  const at: Spots = {};
+
+  for (const columns of [2, 4] as const) {
+    const spot = typeof value === 'object' && value !== null ? (value as Record<number, unknown>)[columns] : undefined;
+
+    if (Array.isArray(spot) && spot.length === 2 && spot.every((n) => Number.isInteger(n) && n >= 0 && n < 1000) && spot[0] + (size === 'large' ? 2 : 1) <= columns) {
+      at[columns] = [spot[0], spot[1]];
+    }
+  }
+
+  return Object.keys(at).length ? at : undefined;
+};
+
+const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, graph: shown, at: spots }: Record<string, unknown>, sensors: Sensor[]): Card | null => {
   if (size !== 'small' && size !== 'large') {
     return null;
   }
 
+  const at = spotsOf(spots, size);
+  const graph = shown !== false;
+
   switch (type) {
     case 'batteries': {
       // Batteries cards saved before sensors could be picked showed every battery.
-      const list = members(ids ?? sensors.filter(hasBattery).map((item) => item.id), 'battery', MAX_PER_CARD.batteries, sensors);
-      return list && { type, size, sensor: null, metric: null, sensors: list };
+      const list = members(ids ?? sensors.filter(hasBattery).map((item) => item.id), 'battery', 1, MAX_PER_CARD.batteries, sensors);
+      return list && { type, size, at, sensor: null, metric: null, sensors: list };
     }
     case 'combined': {
-      const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, MAX_PER_CARD.combined, sensors) : null;
-      return list && { type, size, sensor: null, metric: metric as string, sensors: list };
+      const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, 2, MAX_PER_CARD.combined, sensors) : null;
+      return list && { type, size, at, sensor: null, metric: metric as string, sensors: list, graph };
     }
     case 'sensor': {
       const found = sensors.find((item) => item.id === sensor);
@@ -98,10 +126,10 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names }: Re
       // No values means all of them: cards saved before values could be picked, or before the sensor had any.
       const known = dataMetrics(found.metrics).map((item) => item.name);
       const list = [...new Set(Array.isArray(names) ? names : [])].filter((name) => known.includes(name)).slice(0, MAX_PER_CARD.sensor);
-      return { type, size, sensor: found.id, metric, metrics: list.length ? list : sensorValues(found) };
+      return { type, size, at, sensor: found.id, metric, metrics: list.length ? list : sensorValues(found), graph };
     }
     case 'metric':
-      return has(sensors, sensor, metric) ? { type, size, sensor: sensor as number, metric: metric as string } : null;
+      return has(sensors, sensor, metric) ? { type, size, at, sensor: sensor as number, metric: metric as string, graph } : null;
     default:
       return null;
   }

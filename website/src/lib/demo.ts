@@ -1,5 +1,6 @@
 // Sample data for the demo and `npm run dev`. It lives in the browser, always ends a few minutes ago, and resets on reload.
 import { ApiError } from './api';
+import { timeZone } from './zone';
 
 type Body = Record<string, any>;
 type Handler = (input: { id: number; body: Body; query: URLSearchParams }) => unknown;
@@ -124,26 +125,118 @@ let sessions = [
   },
 ];
 
-const noise = (seed: number) => {
-  const x = Math.sin(seed * 12.9898) * 43758.5453;
-  return (x - Math.floor(x)) * 2 - 1;
+// Repeatable pseudo-random number from 0 to 1.
+const random = (n: number) => {
+  const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
+  return x - Math.floor(x);
 };
 
+// Smooth noise from -1 to 1 that changes over about one period.
+const drift = (time: number, period: number, seed: number) => {
+  const t = time / period;
+  const i = Math.floor(t);
+  const u = (t - i) ** 2 * (3 - 2 * (t - i));
+  return (random(i + seed * 7919) * (1 - u) + random(i + 1 + seed * 7919) * u) * 2 - 1;
+};
+
+// A value over the day, eased between [hour, value] points that start at 0 and end at 24.
+const daily = (hour: number, points: [number, number][]) => {
+  const next = points.findIndex(([at]) => at > hour);
+  const [h0, v0] = points[next - 1];
+  const [h1, v1] = points[next];
+  const f = (hour - h0) / (h1 - h0);
+  return v0 + (v1 - v0) * f * f * (3 - 2 * f);
+};
+
+// Heating comes on before 7, stays up in the evening and goes down at night.
+const HEATING: [number, number][] = [
+  [0, -0.6],
+  [5, -1.1],
+  [6.5, -1.1],
+  [8, 0.2],
+  [12, 0],
+  [15, 0.3],
+  [18, 0.5],
+  [22.5, 0.4],
+  [24, -0.6],
+];
+const BEDROOM: [number, number][] = [
+  [0, 0.3],
+  [6.5, 0.1],
+  [8, -0.5],
+  [13, -0.7],
+  [18, -0.3],
+  [21.5, 0],
+  [23, 0.4],
+  [24, 0.3],
+];
+const OUTSIDE: [number, number][] = [
+  [0, -0.4],
+  [6, -1],
+  [9, -0.3],
+  [14.5, 1],
+  [18, 0.4],
+  [21, -0.1],
+  [24, -0.4],
+];
+const SUN: [number, number][] = [
+  [0, 0],
+  [11, 0],
+  [14, 1],
+  [16, 0.7],
+  [19, 0],
+  [24, 0],
+];
+const SLEEP: [number, number][] = [
+  [0, 4],
+  [7, 5],
+  [8.5, 0],
+  [22.5, 0],
+  [23.5, 3],
+  [24, 4],
+];
+
 const value = (sensor: DemoSensor, name: string, time: number) => {
-  const day = (time / DAY) % 1;
-  const season = Math.sin(2 * Math.PI * (time / YEAR - 0.2));
-  const jitter = noise(time / 900000 + sensor.id * 7919 + name.length * 104729);
-  const { temperature, humidity, outside = false } = sensor.climate ?? { temperature: 20, humidity: 50 };
+  const local = time + offsetAt(timeZone(), time);
+  const hour = (((local % DAY) + DAY) % DAY) / HOUR;
+  const day = Math.floor(local / DAY);
+  const season = Math.sin((2 * Math.PI * (((time / DAY) % 365.25) - 106)) / 365.25);
+  const weather = drift(time, 2.5 * DAY, 1);
+  const cloud = (drift(time, 0.8 * DAY, 2) + 1) / 2;
+  const { temperature: base, humidity: wet, outside = false } = sensor.climate ?? { temperature: 20, humidity: 50 };
+  const seed = sensor.id * 31;
+  const outdoor = 10.3 + 7.4 * season + 3 * weather + (2.5 + 3 * (1 - cloud)) * daily(hour, OUTSIDE);
+
+  // Some mornings a window is opened for a while.
+  const opened = 7.5 + 3 * random(day * 13 + seed);
+  const airing = random(day * 7 + seed) > 0.75 && hour >= opened ? Math.exp(-(hour - opened) / 0.6) : 0;
+  // Most evenings there's cooking.
+  const cooking = random(day * 11 + seed) > 0.35 && hour >= 18 ? Math.exp(-(hour - 18) / 0.8) * Math.min(1, (hour - 18) * 4) : 0;
+
+  const indoor =
+    base +
+    0.8 * season +
+    0.35 * weather +
+    daily(hour, sensor.id === 1 ? BEDROOM : HEATING) +
+    (sensor.id === 3 ? 0.9 * (1 - cloud) * daily(hour, SUN) : 0) -
+    1.6 * airing +
+    0.15 * drift(time, 3 * HOUR, seed) +
+    0.05 * drift(time, 25 * MINUTE, seed + 1);
+  const temperature = outside ? outdoor + 0.3 * drift(time, 2 * HOUR, seed) + 0.1 * drift(time, 20 * MINUTE, seed + 1) : indoor;
 
   switch (name) {
     case 'temperature':
-      return +(temperature + (outside ? 4 : 2) * Math.sin(2 * Math.PI * (day - 0.55)) + (outside ? 7 : 1) * season + 0.25 * jitter).toFixed(2);
-    case 'humidity':
-      return +(humidity + 7 * Math.sin(2 * Math.PI * (day + 0.1)) - 6 * season + 1.5 * jitter).toFixed(1);
+      return +temperature.toFixed(2);
+    case 'humidity': {
+      const humidity = outside
+        ? 78 - 4 * (outdoor - 10.3 - 7.4 * season - 3 * weather) + 8 * drift(time, 1.5 * DAY, 5) + 6 * cloud
+        : wet - 2 * (indoor - base) - 4 * season + 4 * weather + (sensor.id === 1 ? daily(hour, SLEEP) : 0) + (sensor.id === 2 ? 8 * cooking : 0) - 6 * airing + 1.2 * drift(time, 2 * HOUR, seed + 2);
+      return +Math.min(Math.max(humidity, 25), 99).toFixed(1);
+    }
     case 'battery':
-      return 97 - sensor.id * 6;
+      return Math.round(100 - ((time - (now() - sensor.since * DAY)) / DAY) * (0.02 + 0.012 * sensor.id) - (outside && temperature < 5 ? 2 : 0));
     default:
-      return +(3.02 - sensor.id * 0.02 + 0.01 * jitter).toFixed(3);
+      return +(2.55 + 0.0055 * (100 - ((time - (now() - sensor.since * DAY)) / DAY) * (0.02 + 0.012 * sensor.id)) + 0.004 * drift(time, 6 * HOUR, seed)).toFixed(3);
   }
 };
 

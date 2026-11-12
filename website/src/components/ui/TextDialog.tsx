@@ -43,7 +43,7 @@ function Form({ label, value, onSave, onClose }: Omit<Props, 'open' | 'title'>) 
 
 export default function TextDialog({ open, title, onClose, ...props }: Props) {
   return (
-    <Dialog open={open} title={title} onClose={onClose}>
+    <Dialog open={open} title={title} variant="prompt" onClose={onClose}>
       <Form {...props} onClose={onClose} />
     </Dialog>
   );

@@ -80,7 +80,7 @@ function Tabs({ current, bottom = false }: { current?: Tab; bottom?: boolean }) 
           key={id}
           href={href}
           aria-current={id === current ? 'page' : undefined}
-          className={`flex items-center rounded-full font-semibold transition-colors aria-[current=page]:bg-fill aria-[current=page]:text-accent ${
+          className={`flex items-center rounded-full font-semibold transition duration-200 ease-out aria-[current=page]:bg-fill aria-[current=page]:text-accent ${
             bottom ? 'min-w-20 flex-col gap-0.5 px-4 py-1.5 text-[11px]' : 'gap-2 px-4 py-1.5 text-sm'
           }`}
         >
@@ -132,7 +132,7 @@ export default function App() {
     <>
       {isDemo() && (
         <div className="bg-accent px-4 py-1.5 text-center text-[13px] font-semibold text-white dark:text-navy-950">
-          Demo with sample data. Changes are gone upon reload.{' '}
+          Demo with sample data. Changes reset upon reload.{' '}
           <a href="/login/" onClick={endDemo} className="underline underline-offset-2">
             Exit demo
           </a>
