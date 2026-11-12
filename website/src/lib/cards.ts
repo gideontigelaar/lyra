@@ -1,5 +1,5 @@
 import { dataMetrics, hasBattery, mainMetrics, metricStyle } from './metrics';
-import { sensorPath } from './paths';
+import { SUMMARY, averagePath, batteriesPath, sensorPath } from './paths';
 import type { Card, Sensor, SensorMetric } from './types';
 
 // The most a card holds: values on a sensor card, sensors on a batteries or combined card.
@@ -37,15 +37,15 @@ const sensorValues = (sensor: Sensor) =>
     .map((metric) => metric.name)
     .slice(0, MAX_PER_CARD.sensor);
 
-// A card opens its sensor, on its value when it shows one. A batteries card of one sensor opens that sensor's battery.
+// A card opens a page in Summary's tab: its sensor, on its value when it shows one, or a page of its own for an average or several batteries.
 export const cardHref = (card: Card) => {
   switch (card.type) {
     case 'batteries':
-      return card.sensors.length === 1 ? sensorPath(card.sensors[0], 'battery') : '/sensors/';
+      return card.sensors.length === 1 ? sensorPath(card.sensors[0], 'battery', SUMMARY) : batteriesPath(card.sensors);
     case 'combined':
-      return '/sensors/';
+      return averagePath(card.metric, card.sensors);
     default:
-      return sensorPath(card.sensor, card.type === 'metric' ? card.metric : undefined);
+      return sensorPath(card.sensor, card.type === 'metric' ? card.metric : undefined, SUMMARY);
   }
 };
 

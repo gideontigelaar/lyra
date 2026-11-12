@@ -8,6 +8,7 @@ import { endDemo, forgetSignIn } from '../../lib/session';
 import { type UserSettings, loadSettings, saveSettings } from '../../lib/settings';
 import type { Passkey, Session } from '../../lib/types';
 import { inlineSelect, textButton } from '../../lib/ui';
+import { showNotice } from '../../lib/toast';
 import { TEMPERATURE_UNITS } from '../../lib/units';
 import { browserZone } from '../../lib/zone';
 import { ZONES, offsetOf, placeOf } from '../../lib/zones';
@@ -41,7 +42,7 @@ export default function Settings() {
   const { data, error, reload } = useLoad(() => Promise.all([api<{ passkeys: Passkey[] }>('/passkeys'), loadSettings(), api<{ sessions: Session[] }>('/sessions')]));
   const [theme, setTheme] = useState(storedTheme);
   const [changes, setChanges] = useState<Partial<UserSettings>>({});
-  const [ending, setEnding] = useState<number | null>(null);
+  const [ending, setEnding] = useState<Session | null>(null);
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<Passkey | null>(null);
   const [busy, setBusy] = useState(false);
@@ -76,6 +77,7 @@ export default function Settings() {
 
     try {
       await registerPasskey(name);
+      showNotice(`Added ${name}`);
       reload();
     } catch (e) {
       failure(e);
@@ -98,6 +100,7 @@ export default function Settings() {
       }
 
       setRemoving(null);
+      showNotice(`Removed ${passkey.name}`);
       reload();
     } catch (e) {
       setActionError(failure(e));
@@ -107,17 +110,19 @@ export default function Settings() {
   };
 
   const endSession = async (session: Session) => {
-    setEnding(session.id);
+    setBusy(true);
     setActionError(null);
 
     try {
       await api(`/sessions/${session.id}`, 'DELETE');
+      setEnding(null);
+      showNotice(`Signed out ${browserName(session.user_agent)}`);
       reload();
     } catch (e) {
       setActionError(failure(e));
     }
 
-    setEnding(null);
+    setBusy(false);
   };
 
   const settings = data && { ...data[1], ...changes };
@@ -211,13 +216,7 @@ export default function Settings() {
               }
               trailing={
                 !session.current && (
-                  <button
-                    type="button"
-                    aria-label={`Sign out ${browserName(session.user_agent)}`}
-                    className={`${textButton} text-[15px] text-danger`}
-                    disabled={ending !== null}
-                    onClick={() => endSession(session)}
-                  >
+                  <button type="button" aria-label={`Sign out ${browserName(session.user_agent)}`} className={`${textButton} text-[15px] text-danger`} onClick={() => setEnding(session)}>
                     Sign Out
                   </button>
                 )
@@ -232,6 +231,16 @@ export default function Settings() {
       <TextDialog open={adding} title="Add Passkey" label="Name" value="" onClose={() => setAdding(false)} onSave={add} />
       <ConfirmDialog open={removing !== null} title={`Remove ${removing?.name}?`} confirm="Remove" busy={busy} onClose={() => setRemoving(null)} onConfirm={() => removing && remove(removing)}>
         {removing?.current ? "You signed in here with this passkey, so you're signed out here too." : "It can't be used to sign in anymore."}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={ending !== null}
+        title={`Sign out ${ending ? browserName(ending.user_agent) : ''}?`}
+        confirm="Sign Out"
+        busy={busy}
+        onClose={() => setEnding(null)}
+        onConfirm={() => ending && endSession(ending)}
+      >
+        It's signed out on that device straight away. Signing in there again takes a passkey.
       </ConfirmDialog>
     </>
   );

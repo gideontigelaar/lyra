@@ -336,13 +336,12 @@ export default function SummaryCard(props: Props) {
           {...listeners}
           onKeyDown={onKeyDown}
           onClick={onEdit}
-          aria-label={name}
           className={`${surface} cursor-grab touch-manipulation select-none [-webkit-touch-callout:none] ${isDragging ? 'cursor-grabbing' : ''}`}
         >
           {body}
         </div>
       ) : (
-        <a href={cardHref(card)} aria-label={name} className={`${surface} ${pressable} hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy-950/5 active:translate-y-0 active:scale-[0.98]`}>
+        <a href={cardHref(card)} className={`${surface} ${pressable} hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy-950/5 active:translate-y-0 active:scale-[0.98]`}>
           {body}
         </a>
       )}

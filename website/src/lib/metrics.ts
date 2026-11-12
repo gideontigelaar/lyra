@@ -32,7 +32,7 @@ export const metricStyle = (metric: string): MetricStyle =>
 
 export const sortMetrics = <T extends { name: string }>(metrics: T[]) => [...metrics].sort((a, b) => (order.indexOf(a.name) + 1 || order.length + 1) - (order.indexOf(b.name) + 1 || order.length + 1));
 
-const LOW_BATTERY = 20;
+export const LOW_BATTERY = 20;
 
 const withRole = <T extends { name: string }>(metrics: T[], keep: (role: MetricStyle['role']) => boolean) => sortMetrics(metrics.filter((metric) => keep(metricStyle(metric.name).role)));
 

@@ -4,7 +4,7 @@ import { formatNumber, unitText } from '../../lib/format';
 import { failure } from '../../lib/load';
 import { metricStyle } from '../../lib/metrics';
 import { type PeriodId, PERIODS, isPeriod, periods } from '../../lib/periods';
-import { fetchPoints, rangeOf } from '../../lib/readings';
+import { averagePoints, fetchPoints, rangeOf } from '../../lib/readings';
 import type { Point, SensorMetric } from '../../lib/types';
 import { iconButton } from '../../lib/ui';
 import RangeChart from '../chart/RangeChart';
@@ -12,8 +12,9 @@ import Message from '../ui/Message';
 import Segmented from '../ui/Segmented';
 
 interface Props {
-  sensor: number;
-  metric: SensorMetric;
+  // More than one sensor charts their average.
+  sensors: number[];
+  metric: Pick<SensorMetric, 'name' | 'unit'>;
 }
 
 const HOUR = 3600000;
@@ -27,7 +28,7 @@ const storedPeriod = (): PeriodId => {
   }
 };
 
-export default function MetricChart({ sensor, metric }: Props) {
+export default function MetricChart({ sensors, metric }: Props) {
   const style = metricStyle(metric.name);
   const [period, setPeriod] = useState(storedPeriod);
   const [start, setStart] = useState(() => periods[storedPeriod()].start(new Date()));
@@ -38,7 +39,7 @@ export default function MetricChart({ sensor, metric }: Props) {
   const end = config.shift(start, 1);
   const now = new Date();
   // Readings only show on the period they were loaded for, so the new axes never draw the last period's readings.
-  const key = `${metric.name}:${period}:${start.getTime()}`;
+  const key = `${sensors.join('-')}:${metric.name}:${period}:${start.getTime()}`;
   const data = loaded?.key === key ? loaded : null;
   const points = data?.points ?? null;
 
@@ -49,20 +50,22 @@ export default function MetricChart({ sensor, metric }: Props) {
     // One bucket on each side, so the line can continue to the chart's edges.
     const margin = { raw: 3 * HOUR, hour: HOUR, day: 25 * HOUR, week: 8 * 24 * HOUR, month: 32 * 24 * HOUR }[config.bucket];
 
-    fetchPoints(sensor, metric.name, start.getTime() - margin, end.getTime() + margin, config.bucket).then(
-      (result) => {
-        if (current) {
-          setLoaded({
-            key,
-            points: result.filter((point) => point.time >= start.getTime() && point.time < end.getTime()),
-            before: result.findLast((point) => point.time < start.getTime()),
-            after: result.find((point) => point.time >= end.getTime()),
-          });
-          setError(null);
-        }
-      },
-      (e) => current && setError(failure(e)),
-    );
+    Promise.all(sensors.map((sensor) => fetchPoints(sensor, metric.name, start.getTime() - margin, end.getTime() + margin, config.bucket)))
+      .then(averagePoints)
+      .then(
+        (result) => {
+          if (current) {
+            setLoaded({
+              key,
+              points: result.filter((point) => point.time >= start.getTime() && point.time < end.getTime()),
+              before: result.findLast((point) => point.time < start.getTime()),
+              after: result.find((point) => point.time >= end.getTime()),
+            });
+            setError(null);
+          }
+        },
+        (e) => current && setError(failure(e)),
+      );
 
     return () => {
       current = false;

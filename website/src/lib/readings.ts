@@ -23,3 +23,25 @@ export const fetchPoints = async (sensor: number, metric: string, from: number, 
 };
 
 export const rangeOf = (points: Point[]) => (points.length ? { min: Math.min(...points.map((point) => point.min)), max: Math.max(...points.map((point) => point.max)) } : null);
+
+const QUARTER = 900000;
+const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+// Several sensors' points as one line: per time, the average of the sensors that have a value then.
+// Single readings of different sensors rarely share a time, so those are averaged per quarter of an hour.
+export const averagePoints = (lists: Point[][]): Point[] => {
+  if (lists.length === 1) {
+    return lists[0];
+  }
+
+  const raw = lists.flat().every((point) => point.min === point.max);
+  const times = new Map<number, Point[]>();
+  lists.flat().forEach((point) => {
+    const time = raw ? Math.floor(point.time / QUARTER) * QUARTER : point.time;
+    times.set(time, [...(times.get(time) ?? []), point]);
+  });
+
+  return [...times]
+    .sort(([a], [b]) => a - b)
+    .map(([time, points]) => ({ time, min: mean(points.map((point) => point.min)), max: mean(points.map((point) => point.max)), avg: mean(points.map((point) => point.avg)) }));
+};

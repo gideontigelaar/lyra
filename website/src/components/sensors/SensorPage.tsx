@@ -4,11 +4,12 @@ import { cardKey } from '../../lib/cards';
 import { clockTime, formatNumber, intervalText, unitText } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
 import { dataMetrics, detailMetrics, metricStyle, sortMetrics } from '../../lib/metrics';
-import { dataPath, sensorPath } from '../../lib/paths';
+import { dataPath, sensorPath, summaryHome } from '../../lib/paths';
 import { loadPins, togglePin } from '../../lib/pins';
 import { type Params, navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh, isOnline } from '../../lib/status';
+import { showNotice } from '../../lib/toast';
 import type { Card, Device, Option } from '../../lib/types';
 import { card as cardClass, inlineSelect, pressable, row } from '../../lib/ui';
 import MetricChip from '../MetricChip';
@@ -43,11 +44,12 @@ export default function SensorPage({ params }: { params: Params }) {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const sensor = data?.sensors.find((item) => item.id === id);
+  const home = summaryHome() ?? { href: '/sensors/', label: 'Sensors' };
 
   if (data && !sensor) {
     return (
       <>
-        <PageHeader title="Sensor not found" back={{ href: '/sensors/', label: 'Sensors' }} />
+        <PageHeader title="Sensor not found" back={home} />
         <p className="text-muted">This sensor may have been removed.</p>
       </>
     );
@@ -69,7 +71,7 @@ export default function SensorPage({ params }: { params: Params }) {
   if (!data || !sensor) {
     return (
       <>
-        <PageHeader title="" back={{ href: '/sensors/', label: 'Sensors' }} />
+        <PageHeader title="" back={home} />
         <Message error={error} loading />
       </>
     );
@@ -106,12 +108,12 @@ export default function SensorPage({ params }: { params: Params }) {
 
   const choose = (name: string) => {
     setChosen(name);
-    history.replaceState(null, '', sensorPath(id, name));
+    history.replaceState(history.state, '', sensorPath(id, name));
   };
 
   return (
     <>
-      <PageHeader title={sensor.name} back={{ href: '/sensors/', label: 'Sensors' }} subtitle={status} />
+      <PageHeader title={sensor.name} back={home} subtitle={status} />
       <Message error={actionError} />
       {shown ? (
         <>
@@ -138,12 +140,24 @@ export default function SensorPage({ params }: { params: Params }) {
             })}
           </div>
           <div className="mt-6">
-            <MetricChart sensor={id} metric={shown} />
+            <MetricChart sensors={[id]} metric={shown} />
           </div>
           <Section title={metricStyle(shown.name).label}>
             <Row
               label="Pin to Summary"
-              trailing={<Switch label="Pin to Summary" checked={pinned} onChange={() => card && run(async () => setPins(await togglePin(data.sensors, currentPins, card)))} />}
+              trailing={
+                <Switch
+                  label="Pin to Summary"
+                  checked={pinned}
+                  onChange={() =>
+                    card &&
+                    run(async () => {
+                      setPins(await togglePin(data.sensors, currentPins, card));
+                      showNotice(pinned ? 'Unpinned from Summary' : 'Pinned to Summary');
+                    })
+                  }
+                />
+              }
             />
             <Row label="Show All Data" href={dataPath(id, shown.name)} />
           </Section>
@@ -215,7 +229,7 @@ export default function SensorPage({ params }: { params: Params }) {
             }
           />
           <Row label="Type" detail={data.decoders.find((item) => item.name === sensor.decoder)?.label ?? sensor.decoder} />
-          <button type="button" className={`${row} ${pressable}`} onClick={() => copy(sensor.address)}>
+          <button type="button" className={`${row} ${pressable}`} onClick={() => copy(sensor.address, 'MAC address')}>
             <span className="min-w-0 flex-1 text-[17px]">MAC address</span>
             <CopyText text={sensor.address} copied={copied} className="font-mono text-[15px] text-muted" />
             <span className="text-muted/70">
@@ -255,7 +269,8 @@ export default function SensorPage({ params }: { params: Params }) {
           setBusy(true);
           await run(async () => {
             await api(`/sensors/${id}`, 'DELETE');
-            navigate('/sensors/');
+            showNotice(`Removed ${sensor.name}`);
+            navigate(home.href);
           });
           setBusy(false);
         }}

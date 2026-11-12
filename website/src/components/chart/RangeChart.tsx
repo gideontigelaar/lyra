@@ -85,6 +85,9 @@ export default function RangeChart({ id, points, before, after, start, end, slot
   const inside = (i: number) => i >= shift && i < shift + points.length;
   const clip = useId();
 
+  // A finger scrubs sideways through the points, like in Health or Stocks. Swiping up or down still scrolls the page and leaves the selection as it was.
+  const scrub = useRef<{ pointer: number; before: number | null } | null>(null);
+
   const pick = (event: PointerEvent<SVGRectElement>) => {
     if (!centers.length) {
       return;
@@ -110,9 +113,9 @@ export default function RangeChart({ id, points, before, after, start, end, slot
   };
 
   return (
-    <div ref={ref} tabIndex={0} role="group" aria-label={label} onKeyDown={onKeyDown} className="relative rounded-xl outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent">
+    <div ref={ref} tabIndex={0} role="group" aria-label={label} onKeyDown={onKeyDown} className="relative touch-pan-y rounded-xl outline-offset-4 focus-visible:outline-2 focus-visible:outline-accent">
       {width > 0 && (
-        <svg width={width} height={HEIGHT} className="block touch-pan-y select-none" aria-hidden="true">
+        <svg width={width} height={HEIGHT} className="block select-none [-webkit-touch-callout:none]" aria-hidden="true">
           {y.ticks.map((tick) => (
             <g key={tick}>
               <line x1={0} x2={plotWidth} y1={yPos(tick)} y2={yPos(tick)} className="stroke-line" />
@@ -160,8 +163,28 @@ export default function RangeChart({ id, points, before, after, start, end, slot
             width={plotWidth}
             height={HEIGHT}
             fill="transparent"
-            onPointerDown={pick}
-            onPointerMove={(event) => (event.pointerType === 'mouse' || event.buttons) && pick(event)}
+            onPointerDown={(event) => {
+              if (event.pointerType === 'mouse') {
+                pick(event);
+                return;
+              }
+
+              scrub.current = { pointer: event.pointerId, before: selected };
+              event.currentTarget.setPointerCapture(event.pointerId);
+            }}
+            onPointerMove={(event) => (event.pointerType === 'mouse' || scrub.current?.pointer === event.pointerId) && pick(event)}
+            onPointerUp={(event) => {
+              if (scrub.current?.pointer === event.pointerId) {
+                pick(event);
+                scrub.current = null;
+              }
+            }}
+            onPointerCancel={() => {
+              if (scrub.current) {
+                onSelect(scrub.current.before);
+                scrub.current = null;
+              }
+            }}
             onPointerLeave={(event) => event.pointerType === 'mouse' && onSelect(null)}
           />
         </svg>

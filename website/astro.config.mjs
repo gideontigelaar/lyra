@@ -11,7 +11,7 @@ const appAddresses = {
   name: 'app-addresses',
   configureServer(server) {
     server.middlewares.use((req, _res, next) => {
-      const section = req.url?.match(/^\/(sensors|sources)\/[^?]+/)?.[1];
+      const section = req.url?.match(/^\/(summary|sensors|sources)\/[^?]+/)?.[1];
 
       if (section) {
         req.url = `/${section}/`;

@@ -15,11 +15,11 @@ export default function KeyDialog({ value, onClose }: Props) {
         Put this key in <code className="font-mono text-[14px]">firmware/include/credentials.h</code> as <code className="font-mono text-[14px]">API_KEY</code> and flash the source. It's only shown
         now.
       </p>
-      <button type="button" aria-label="Copy key" className={`mt-4 w-full rounded-2xl bg-surface p-4 text-left font-mono text-[14px] break-all ${pressable}`} onClick={() => copy(value ?? '')}>
+      <button type="button" aria-label="Copy key" className={`mt-4 w-full rounded-2xl bg-surface p-4 text-left font-mono text-[14px] break-all ${pressable}`} onClick={() => copy(value ?? '', 'key')}>
         <CopyText text={value ?? ''} copied={copied} className="text-[14px]" />
       </button>
       <div className="mt-6 flex justify-end gap-2">
-        <button type="button" className={secondaryButton} onClick={() => copy(value ?? '')}>
+        <button type="button" className={secondaryButton} onClick={() => copy(value ?? '', 'key')}>
           <CopyMark copied={copied} />
           <CopyText text="Copy" copied={copied} accent={false} />
         </button>

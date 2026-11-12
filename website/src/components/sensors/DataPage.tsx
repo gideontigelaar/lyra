@@ -10,6 +10,7 @@ import type { Params } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import type { Point } from '../../lib/types';
 import { dangerButton, group, pressable, row, secondaryButton, textButton } from '../../lib/ui';
+import { showNotice } from '../../lib/toast';
 import { startOfDay, wall, zoned } from '../../lib/zone';
 import ConfirmDialog from '../ui/ConfirmDialog';
 import { Row } from '../ui/List';
@@ -101,6 +102,8 @@ export default function DataPage({ params }: { params: Params }) {
 
     try {
       await api('/readings', 'DELETE', { sensor: sensorId, metric: metricName, ranges });
+      const count = ranges.length;
+      showNotice(confirming === 'all' ? `Deleted ${date ? "this day's" : 'all'} ${what}` : `Deleted ${count} ${date ? 'reading' : 'day'}${count === 1 ? '' : 's'}`);
       setConfirming(null);
       restart();
     } catch (e) {

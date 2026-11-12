@@ -68,6 +68,7 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
   }, [open]);
 
   // The on-screen keyboard covers the bottom of the layout viewport on iOS, so the dialog keeps above it.
+  // Only when the keyboard comes or goes: following every scroll of the visual viewport made the dialog jump while scrolling in it.
   useEffect(() => {
     const viewport = window.visualViewport;
     const dialog = ref.current;
@@ -79,12 +80,7 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
     const update = () => dialog.style.setProperty('--keyboard', `${Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))}px`);
     update();
     viewport.addEventListener('resize', update);
-    viewport.addEventListener('scroll', update);
-
-    return () => {
-      viewport.removeEventListener('resize', update);
-      viewport.removeEventListener('scroll', update);
-    };
+    return () => viewport.removeEventListener('resize', update);
   }, [open]);
 
   return (

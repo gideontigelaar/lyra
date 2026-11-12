@@ -2,9 +2,10 @@ import { CheckCircleIcon, CircleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { failure, useLoad } from '../../lib/load';
-import { sensorPath } from '../../lib/paths';
+import { sensorPath, summaryHome } from '../../lib/paths';
 import { type Params, navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
+import { showNotice } from '../../lib/toast';
 import type { Device } from '../../lib/types';
 import { group, pressable, primaryButton, row } from '../../lib/ui';
 import { displayUnit } from '../../lib/units';
@@ -30,7 +31,7 @@ export default function SourcePage({ params }: { params: Params }) {
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const device = data?.[0].devices.find((item) => item.id === id);
-  const back = { href: '/sources/', label: 'Sources' };
+  const back = summaryHome() ?? { href: '/sources/', label: 'Sources' };
 
   const run = async (action: () => Promise<unknown>) => {
     setBusy(true);
@@ -174,7 +175,8 @@ export default function SourcePage({ params }: { params: Params }) {
         onConfirm={() =>
           run(async () => {
             await api(`/devices/${id}`, 'DELETE');
-            navigate('/sources/');
+            showNotice(`Removed ${device.name}`);
+            navigate(back.href);
           })
         }
       >
