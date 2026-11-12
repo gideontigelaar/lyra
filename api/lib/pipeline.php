@@ -11,7 +11,7 @@ function plugin(string $kind, string $name): array
 {
     static $loaded = [];
 
-    return $loaded["$kind/$name"] ??= require dirname(__DIR__) . "/$kind/$name.php";
+    return $loaded["$kind/$name"] ??= require dirname(__DIR__) . "/plugins/$kind/$name.php";
 }
 
 function plugin_list(string $kind, array $names): array
