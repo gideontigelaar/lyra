@@ -1,5 +1,5 @@
 import { WarningCircleIcon } from '@phosphor-icons/react';
-import { clockTime } from '../../lib/format';
+import { aboutDays, clockTime } from '../../lib/format';
 import { useLoad } from '../../lib/load';
 import { LOW_BATTERY, batteryLevel, hasBattery, lowBattery } from '../../lib/metrics';
 import { sensorPath } from '../../lib/paths';
@@ -51,7 +51,10 @@ export default function BatteriesPage({ params }: { params: Params }) {
                       Low ·
                     </span>
                   )}
-                  {latest ? clockTime(latest.measured_at, now) : 'No Data'}
+                  <span className="truncate">
+                    {latest ? clockTime(latest.measured_at, now) : 'No Data'}
+                    {sensor.battery_days_left !== null && ` · ${aboutDays(sensor.battery_days_left)} left`}
+                  </span>
                 </span>
               </>
             }

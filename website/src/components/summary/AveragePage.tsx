@@ -1,6 +1,6 @@
 import { clockTime, formatNumber, unitText } from '../../lib/format';
 import { useLoad } from '../../lib/load';
-import { metricStyle } from '../../lib/metrics';
+import { metricStyle, trendOf } from '../../lib/metrics';
 import { sensorPath } from '../../lib/paths';
 import type { Params } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
@@ -40,6 +40,7 @@ export default function AveragePage({ params }: { params: Params }) {
   const readings = members.flatMap(({ value }) => (value.latest ? [value.latest] : []));
   const numbers = readings.map((reading) => reading.value);
   const average = numbers.length ? numbers.reduce((sum, value) => sum + value, 0) / numbers.length : null;
+  const changes = members.map(({ value }) => value.change);
   const newest = readings
     .map((reading) => reading.measured_at)
     .sort()
@@ -55,7 +56,7 @@ export default function AveragePage({ params }: { params: Params }) {
           <div className="text-subheadline font-semibold">{newest ? `Now · ${clockTime(newest, now)}` : 'Now'}</div>
           {spread && <div className="truncate text-footnote text-muted">{spread}</div>}
         </div>
-        <MetricValue metric={metric} value={average} unit={unit} />
+        <MetricValue metric={metric} value={average} unit={unit} trend={trendOf(metric, changes)} />
       </div>
       <div className="mt-6">
         <MetricChart sensors={members.map(({ sensor }) => sensor.id)} metric={members[0].value} />

@@ -99,7 +99,9 @@ export default function Summary() {
   const layout = layoutOf(cards, columns);
   const preview = order ? layoutOf(order.cards, columns) : layout;
   const rows = Math.max(rowsOf(preview), order?.rows ?? 0);
-  const sparkKeys = [...new Set(cards.flatMap((card) => (!('graph' in card) || !card.graph ? [] : cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name)))))];
+  // The last 24 hours of a card's values, for its graph or its high and low.
+  const hours = (card: Card) => (card.type === 'metric' || card.type === 'combined' ? card.graph || card.detail === 'range' : card.type === 'sensor' && card.graph);
+  const sparkKeys = [...new Set(cards.flatMap((card) => (hours(card) ? cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name)) : [])))];
 
   useEffect(() => {
     const refresh = setInterval(() => {
@@ -206,8 +208,9 @@ export default function Summary() {
     setAdding(false);
   };
 
+  // A changed card keeps its place.
   const save = (card: Card) => {
-    change(cards.map((item) => (cardKey(item) === cardKey(editing!) ? card : item)));
+    change(cards.map((item) => (cardKey(item) === cardKey(editing!) ? (item.end ? { ...card, end: true } : card) : item)));
     setEditing(null);
   };
 

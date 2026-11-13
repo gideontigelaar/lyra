@@ -1,16 +1,17 @@
 import { useDraggable } from '@dnd-kit/core';
-import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, BroadcastIcon, MinusIcon, WarningCircleIcon, WifiHighIcon } from '@phosphor-icons/react';
+import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, BroadcastIcon, MinusIcon, PulseIcon, WarningCircleIcon, WifiHighIcon } from '@phosphor-icons/react';
 import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useState } from 'react';
 import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
-import { clockTime, formatNumber, timeAgo, unitText } from '../../lib/format';
-import { batteryLevel, hasBattery, lowBattery, metricStyle } from '../../lib/metrics';
+import { aboutDays, clockTime, formatNumber, timeAgo, unitText } from '../../lib/format';
+import { batteryLevel, hasBattery, lowBattery, metricStyle, trendOf } from '../../lib/metrics';
 import type { Spot } from '../../lib/grid';
+import { rangeOf } from '../../lib/readings';
 import { isFresh, isOnline } from '../../lib/status';
 import { dbm, duration, kilobytes, signal } from '../../lib/telemetry';
 import type { Card, Device, Point, Sensor, SensorMetric } from '../../lib/types';
 import { card as cardClass, pressable } from '../../lib/ui';
 import BatteryFill, { BatteryShape } from '../BatteryFill';
-import MetricChip, { Chip } from '../MetricChip';
+import MetricChip, { Chip, MetricIcon } from '../MetricChip';
 import Sparkline from '../chart/Sparkline';
 import MetricValue from '../MetricValue';
 
@@ -123,12 +124,14 @@ const readingTime = (metrics: SensorMetric[], now: number): Time => {
   return time ? { text: clockTime(time, now), stale } : null;
 };
 
-// A large card shows when its values are from beside its title. A small one only shows an overdue time, under its title, so the title keeps its room.
-function Header({ title, subtitle, time, large }: { title: string; subtitle?: ReactNode; time: Time; large: boolean }) {
+// Every card starts with its chip and title. A large card shows when its values are from beside the title. A small one only
+// shows an overdue time, under the title, so the title keeps its room.
+function Header({ chip, title, subtitle, time, large }: { chip: ReactNode; title: string; subtitle?: ReactNode; time: Time; large: boolean }) {
   const overdue = !large && time?.stale && <span className="font-semibold text-warning">{time.text}</span>;
 
   return (
-    <div className="flex items-start gap-2">
+    <div className={`flex ${subtitle || overdue ? 'items-start' : 'items-center'} ${large ? 'gap-2.5' : 'gap-2'}`}>
+      {chip}
       <div className="min-w-0 flex-1">
         <div className="truncate text-subheadline font-semibold">{title}</div>
         {(subtitle || overdue) && (
@@ -144,6 +147,9 @@ function Header({ title, subtitle, time, large }: { title: string; subtitle?: Re
   );
 }
 
+// A value as weather apps show it in a short line, with degrees or percent but not the rest of its unit.
+const brief = (value: number, metric: string, unit: string) => `${formatNumber(value, metricStyle(metric).decimals)}${unit.startsWith('°') ? '°' : unit === '%' ? '%' : ''}`;
+
 function ValueBody({ card, sensors, sparks, now }: Props) {
   const values = cardValues(card, sensors);
   const name = card.metric!;
@@ -153,27 +159,33 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
   const numbers = readings.map((reading) => reading.value);
   const value = numbers.length ? numbers.reduce((sum, item) => sum + item, 0) / numbers.length : null;
   const metrics = values.map(({ metric }) => metric);
-  const spark = 'graph' in card && card.graph ? averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)])) : undefined;
+  const changes = metrics.map((metric) => metric.change);
+  const trend = trendOf(name, changes);
+  const averaged = averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)]));
+  const spark = 'graph' in card && card.graph ? averaged : undefined;
   const combined = card.type === 'combined';
   const unit = values[0]?.metric.unit ?? '';
+  // A value card's high and low are its readings', an average's those of the average.
+  const detail = card.type === 'metric' || card.type === 'combined' ? card.detail : null;
+  const range = detail === 'range' && rangeOf((card.type === 'metric' ? sparks[sparkKey(card.sensor, name)] : averaged)?.points ?? []);
+  // The dew point is in the sensor's temperature unit.
+  const sensor = values[0]?.sensor;
+  const dewPoint = detail === 'dew_point' && sensor?.dewPoint != null ? brief(sensor.dewPoint, 'dew_point', sensor.metrics.find((metric) => metric.name === 'temperature')?.unit ?? '°C') : null;
+  const line = range ? `H ${brief(range.max, name, unit)} · L ${brief(range.min, name, unit)}` : dewPoint && `Dew point ${dewPoint}`;
 
   return (
     <>
-      <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
-        <MetricChip metric={name} small={!large} />
-        <div className="min-w-0 flex-1">
-          <Header
-            title={combined ? `Average ${style.label.toLowerCase()}` : style.label}
-            subtitle={combined ? values.map(({ sensor }) => sensor.name).join(', ') : sensors.length > 1 ? values[0]?.sensor.name : undefined}
-            time={readingTime(metrics, now)}
-            large={large}
-          />
-        </div>
-      </div>
-      {spark ? <Sparkline {...spark} color={style.color} className="mt-3 min-h-8 w-full flex-1" /> : <div className="flex-1" />}
+      <Header
+        chip={<MetricChip metric={name} small={!large} />}
+        title={combined ? `Average ${style.label.toLowerCase()}` : style.label}
+        subtitle={combined ? values.map(({ sensor }) => sensor.name).join(', ') : sensors.length > 1 ? values[0]?.sensor.name : undefined}
+        time={readingTime(metrics, now)}
+        large={large}
+      />
+      {spark ? <Sparkline {...spark} color={style.color} className={`mt-3 w-full flex-1 ${line ? 'min-h-6' : 'min-h-8'}`} /> : <div className="flex-1" />}
       <div className="@container mt-2 flex items-baseline gap-3">
         {/* Without a graph the value takes its room. */}
-        <MetricValue metric={name} value={value} unit={unit} size={spark ? (large ? 'huge' : 'large') : large ? 'giant' : 'huge'} fit />
+        <MetricValue metric={name} value={value} unit={unit} size={spark ? (large ? 'huge' : 'large') : large ? 'giant' : 'huge'} trend={trend} fit />
         {combined && large && numbers.length > 1 && (
           <span className="min-w-0 truncate text-footnote text-muted">
             {formatNumber(Math.min(...numbers), style.decimals)}–{formatNumber(Math.max(...numbers), style.decimals)}
@@ -181,6 +193,7 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
           </span>
         )}
       </div>
+      {line && <div className="mt-1 truncate text-footnote text-muted">{line}</div>}
     </>
   );
 }
@@ -199,6 +212,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   const rows = rowsOf(values, large);
   const metrics = values.map(({ metric }) => metric);
   const time = readingTime(metrics, now);
+  const chip = <Chip icon={PulseIcon} color="var(--accent)" label="Sensor" small={!large} />;
   // Without graphs the values take their room.
   const size = large
     ? graphs
@@ -217,7 +231,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   if (!values.length) {
     return (
       <>
-        <Header title={sensor.name} time={null} large={large} />
+        <Header chip={chip} title={sensor.name} time={null} large={large} />
         <div className="mt-auto text-footnote text-muted">Waiting for the first reading</div>
       </>
     );
@@ -227,17 +241,24 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   if (!large && graphs) {
     return (
       <>
-        <Header title={sensor.name} time={time} large={false} />
+        <Header chip={chip} title={sensor.name} time={time} large={false} />
         <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
           {values.map(({ metric }) => {
             const style = metricStyle(metric.name);
             const spark = sparks[sparkKey(sensor.id, metric.name)];
             return (
               <div key={metric.name} className="flex min-h-0 flex-1 flex-col justify-end">
-                <div className="flex items-center gap-2">
-                  <MetricChip metric={metric.name} small />
+                <div className="flex items-center gap-1.5">
+                  <MetricIcon metric={metric.name} className="size-4.5" />
                   <span className="@container min-w-0 flex-1">
-                    <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={values.length === 1 ? 'large' : 'medium'} fit />
+                    <MetricValue
+                      metric={metric.name}
+                      value={metric.latest!.value}
+                      unit={metric.unit}
+                      size={values.length === 1 ? 'large' : 'medium'}
+                      trend={trendOf(metric.name, [metric.change])}
+                      fit
+                    />
                   </span>
                 </div>
                 {spark && <Sparkline {...spark} color={style.color} className="mt-1 min-h-3 w-full flex-1" />}
@@ -249,10 +270,10 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
     );
   }
 
-  // A value's graph sits above it. Its chip only shows when the value has 7.5rem, and two rows only have room for graphs on wider, so taller, cards.
+  // A value's graph sits above it. Its icon only shows when the value has 7.5rem, and two rows only have room for graphs on wider, so taller, cards.
   return (
     <>
-      <Header title={sensor.name} time={time} large={large} />
+      <Header chip={chip} title={sensor.name} time={time} large={large} />
       <div className={`mt-3 flex min-h-0 flex-1 flex-col ${large ? 'gap-3' : 'gap-2'}`}>
         {rows.map((row, i) => (
           <div key={i} className="flex min-h-0 flex-1 gap-3">
@@ -262,12 +283,10 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
               return (
                 <div key={metric.name} className="@container flex min-h-0 min-w-0 flex-1 flex-col justify-end">
                   {spark && <Sparkline {...spark} color={style.color} className={`mb-2 w-full flex-1 ${rows.length === 1 ? 'min-h-5' : 'hidden min-h-4 @[24rem]/card:block'}`} />}
-                  <div className="flex items-center gap-2">
-                    <span className="hidden @[7.5rem]:block">
-                      <MetricChip metric={metric.name} small />
-                    </span>
+                  <div className="flex items-center gap-1.5">
+                    <MetricIcon metric={metric.name} className={`hidden @[7.5rem]:block ${size === 'huge' ? 'size-6' : 'size-5'}`} />
                     <span className="@container min-w-0 flex-1">
-                      <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} fit />
+                      <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} trend={trendOf(metric.name, [metric.change])} fit />
                     </span>
                   </div>
                 </div>
@@ -280,7 +299,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   );
 }
 
-// One battery: its level large, over a bar as wide as the card. Batteries change too slowly for a graph to say anything.
+// One battery: its level large, with a battery filled as far as it's charged and how long it has left. Batteries change too slowly for a graph to say anything.
 function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; now: number }) {
   const level = batteryLevel(sensor);
   const low = lowBattery(sensor) !== null;
@@ -288,12 +307,7 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
 
   return (
     <>
-      <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
-        <MetricChip metric="battery" small={!large} />
-        <div className="min-w-0 flex-1">
-          <Header title="Battery" subtitle={sensor.name} time={battery ? readingTime([battery], now) : null} large={large} />
-        </div>
-      </div>
+      <Header chip={<MetricChip metric="battery" small={!large} />} title="Battery" subtitle={sensor.name} time={battery ? readingTime([battery], now) : null} large={large} />
       {/* The level, with a battery of one size next to it, filled as far as it's charged. */}
       <div className={`mt-auto flex items-center pt-2 ${large ? 'gap-3' : 'gap-2'}`}>
         <MetricValue metric="battery" value={level} unit="%" size={large ? 'huge' : 'large'} />
@@ -305,6 +319,7 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
           </span>
         )}
       </div>
+      {sensor.battery_days_left !== null && <div className="mt-1 truncate text-footnote text-muted">{aboutDays(sensor.battery_days_left)} left</div>}
     </>
   );
 }
@@ -322,10 +337,7 @@ function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteri
 
   return (
     <>
-      <div className={`flex items-center ${large ? 'gap-2.5' : 'gap-2'}`}>
-        <MetricChip metric="battery" small={!large} />
-        <span className="min-w-0 flex-1 truncate text-subheadline font-semibold">Batteries</span>
-      </div>
+      <Header chip={<MetricChip metric="battery" small={!large} />} title="Batteries" time={null} large={large} />
       <ul className={`mt-auto gap-x-6 gap-y-1.5 pt-3 ${layout}`}>
         {list.map(({ sensor, level, low }) => (
           <li key={sensor.id} className="flex min-w-0 items-center gap-2 text-subheadline">
@@ -374,12 +386,13 @@ function SourceBody({ device, large, now, temperature }: { device: Device; large
 
   return (
     <>
-      <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
-        <Chip icon={BroadcastIcon} color="var(--accent)" label="Source" small={!large} />
-        <div className="min-w-0 flex-1">
-          <Header title={device.name} subtitle={status} time={device.telemetry_at ? { text: clockTime(device.telemetry_at, now), stale: false } : null} large={large} />
-        </div>
-      </div>
+      <Header
+        chip={<Chip icon={BroadcastIcon} color="var(--accent)" label="Source" small={!large} />}
+        title={device.name}
+        subtitle={status}
+        time={device.telemetry_at ? { text: clockTime(device.telemetry_at, now), stale: false } : null}
+        large={large}
+      />
       {!stats.length ? (
         <div className="mt-auto text-footnote text-muted">No reports yet</div>
       ) : large ? (

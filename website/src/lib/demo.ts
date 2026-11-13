@@ -133,6 +133,9 @@ let sessions = [
   },
 ];
 
+// How many points a sensor's battery drops a day, so a full one lasts 1.5 to 2.5 years.
+const drain = (sensor: DemoSensor) => 0.1 + 0.02 * sensor.id;
+
 // Repeatable pseudo-random number from 0 to 1.
 const random = (n: number) => {
   const x = Math.sin(n * 12.9898 + 78.233) * 43758.5453;
@@ -231,7 +234,7 @@ const value = (sensor: DemoSensor, name: string, time: number) => {
     1.6 * airing +
     0.15 * drift(time, 3 * HOUR, seed) +
     0.05 * drift(time, 25 * MINUTE, seed + 1);
-  const level = Math.min(100, sensor.battery + ((now() - time) / DAY) * (0.05 + 0.01 * sensor.id));
+  const level = Math.min(100, sensor.battery + ((now() - time) / DAY) * drain(sensor));
   const temperature = outside ? outdoor + 0.3 * drift(time, 2 * HOUR, seed) + 0.1 * drift(time, 20 * MINUTE, seed + 1) : indoor;
 
   switch (name) {
@@ -297,9 +300,13 @@ const findSensor = (id: unknown) => sensors.find((sensor) => sensor.id === Numbe
 
 const sensorJson = (sensor: DemoSensor) => ({
   ...sensor,
+  // Like the API: the days left at the rate the battery drops.
+  battery_days_left: sensor.metrics.some((item) => item.name === 'battery') ? Math.round(sensor.battery / drain(sensor)) : null,
   metrics: sensor.metrics.map((item) => {
     const latest = readings(sensor, item, now() - item.interval * 2000, now()).at(-1);
-    return { ...item, unit: units[item.name], latest: latest ? { value: latest.value, measured_at: iso(latest.time) } : null };
+    // Like the API: the reading 1 to 2 hours before the latest, for trends.
+    const before = latest && readings(sensor, item, latest.time - 2 * HOUR + 1, latest.time - HOUR + 1).at(-1);
+    return { ...item, unit: units[item.name], latest: latest ? { value: latest.value, measured_at: iso(latest.time), hour_before: before?.value ?? null } : null };
   }),
 });
 
@@ -451,6 +458,7 @@ const routes: Record<string, Handler> = {
       last_seen_at: device.added ? null : iso(now() - 20000 - device.id * 9000),
       telemetry: device.telemetry ?? null,
       telemetry_at: device.telemetry ? iso(now() - 60000 * device.id) : null,
+      counts: device.telemetry ? { restarts: device.id - 1, wifi_reconnects: 2 * device.id, dropped: 0 } : null,
       sensors: sensors.filter((sensor) => sensor.device === device.id).map((sensor) => sensor.id),
     })),
   }),

@@ -22,3 +22,9 @@ export default function MetricChip({ metric, small = false }: { metric: string; 
   const style = metricStyle(metric);
   return <Chip icon={style.icon} color={style.color} label={style.label} small={small} />;
 }
+
+// A value's icon without the tint, for values listed under a card's title, so the title's chip is the only one.
+export function MetricIcon({ metric, className = '' }: { metric: string; className?: string }) {
+  const { icon: Icon, color, label } = metricStyle(metric);
+  return <Icon weight="fill" className={`shrink-0 ${className}`} style={{ color }} aria-label={label} />;
+}

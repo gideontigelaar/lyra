@@ -1,4 +1,4 @@
-import { ArrowsMergeIcon, BroadcastIcon, CaretLeftIcon } from '@phosphor-icons/react';
+import { ArrowsMergeIcon, BroadcastIcon, CaretLeftIcon, PulseIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { MAX_PER_CARD, canCombine } from '../../lib/cards';
 import { formatNumber, unitText } from '../../lib/format';
@@ -55,7 +55,10 @@ export default function PinSheet({ open, sensors, devices, cards, onAdd, onClose
 
   const sensorTiles = sensors.map((item) => (
     <button key={item.id} type="button" className={tile} onClick={() => setView({ kind: 'sensor', id: item.id })}>
-      <span className="w-full truncate text-body font-semibold">{item.name}</span>
+      <span className="flex w-full items-center gap-2 text-body font-semibold">
+        <Chip icon={PulseIcon} color="var(--accent)" small />
+        <span className="min-w-0 truncate">{item.name}</span>
+      </span>
       <span className="w-full truncate text-footnote text-muted">{summaryOf(item)}</span>
     </button>
   ));

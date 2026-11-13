@@ -28,6 +28,12 @@ function list_devices(): never
         $sensors[$row['device_id']][] = $row['sensor_id'];
     }
 
+    $counts = [];
+
+    foreach ($db->query('SELECT device_id, SUM(restarts) AS restarts, SUM(wifi_reconnects) AS wifi_reconnects, SUM(dropped) AS dropped FROM device_counts WHERE day > UTC_DATE() - INTERVAL ' . COUNT_DAYS . ' DAY GROUP BY device_id') as $row) {
+        $counts[$row['device_id']] = ['restarts' => (int) $row['restarts'], 'wifi_reconnects' => (int) $row['wifi_reconnects'], 'dropped' => (int) $row['dropped']];
+    }
+
     $devices = [];
 
     foreach ($db->query('SELECT device_id, name, is_active, last_seen_at, telemetry, telemetry_at FROM devices ORDER BY name') as $row) {
@@ -38,6 +44,7 @@ function list_devices(): never
             'last_seen_at' => iso_time($row['last_seen_at']),
             'telemetry' => $row['telemetry'] === null ? null : json_decode($row['telemetry'], true, 4, JSON_THROW_ON_ERROR),
             'telemetry_at' => iso_time($row['telemetry_at']),
+            'counts' => $row['telemetry'] === null ? null : $counts[$row['device_id']] ?? ['restarts' => 0, 'wifi_reconnects' => 0, 'dropped' => 0],
             'sensors' => $sensors[$row['device_id']] ?? [],
         ];
     }

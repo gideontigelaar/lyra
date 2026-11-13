@@ -7,11 +7,13 @@ interface MetricStyle {
   color: string;
   icon: Icon;
   role?: 'status' | 'detail';
+  // How much it has to change in an hour, in the unit it's stored in, to show an arrow going up or down.
+  trend?: number;
 }
 
 const styles: Record<string, MetricStyle> = {
-  temperature: { label: 'Temperature', decimals: 1, color: 'var(--metric-temperature)', icon: ThermometerSimpleIcon },
-  humidity: { label: 'Humidity', decimals: 0, color: 'var(--metric-humidity)', icon: DropIcon },
+  temperature: { label: 'Temperature', decimals: 1, color: 'var(--metric-temperature)', icon: ThermometerSimpleIcon, trend: 0.3 },
+  humidity: { label: 'Humidity', decimals: 0, color: 'var(--metric-humidity)', icon: DropIcon, trend: 2 },
   battery: { label: 'Battery', decimals: 0, color: 'var(--metric-battery)', icon: BatteryHighIcon, role: 'status' },
   voltage: { label: 'Battery voltage', decimals: 2, color: 'var(--metric-voltage)', icon: LightningIcon, role: 'detail' },
   pressure: { label: 'Pressure', decimals: 1, color: 'var(--metric-other)', icon: GaugeIcon },
@@ -33,6 +35,21 @@ export const metricStyle = (metric: string): MetricStyle =>
 export const sortMetrics = <T extends { name: string }>(metrics: T[]) => [...metrics].sort((a, b) => (order.indexOf(a.name) + 1 || order.length + 1) - (order.indexOf(b.name) + 1 || order.length + 1));
 
 export const LOW_BATTERY = 20;
+
+export type Trend = 'up' | 'down' | null;
+
+// Which way a value went over the last hour, from how much it changed, or of an average from the average of its changes.
+export const trendOf = (metric: string, changes: (number | null)[]): Trend => {
+  const known = changes.filter((change) => change !== null);
+  const step = metricStyle(metric).trend;
+
+  if (step === undefined || !known.length) {
+    return null;
+  }
+
+  const change = known.reduce((sum, item) => sum + item, 0) / known.length;
+  return Math.abs(change) < step ? null : change > 0 ? 'up' : 'down';
+};
 
 const withRole = <T extends { name: string }>(metrics: T[], keep: (role: MetricStyle['role']) => boolean) => sortMetrics(metrics.filter((metric) => keep(metricStyle(metric.name).role)));
 

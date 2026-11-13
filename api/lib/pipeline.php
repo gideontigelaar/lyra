@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 const DECODERS = ['bthome'];
 const SINKS = ['lyra'];
-const RELAY_SECONDS = 900;
+// How often a source relays each of its sensors. Some sensors spread their values over broadcasts of their own, like pvvx
+// sends temperature and humidity in one and the battery in another, so a source relays often enough to catch each in time.
+const RELAY_SECONDS = 60;
+// A sensor with every value turned off is still relayed now and then, so a value that's new to it shows up.
+const IDLE_RELAY_SECONDS = 900;
+// A source's restarts, reconnects and dropped broadcasts are counted over this many days.
+const COUNT_DAYS = 7;
 const MAC_PATTERN = '/^(?:[0-9A-F]{2}:){5}[0-9A-F]{2}$/';
 
 function plugin(string $kind, string $name): array

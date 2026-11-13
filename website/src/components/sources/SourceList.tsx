@@ -5,17 +5,21 @@ import { timeAgo } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
 import { sourcePath } from '../../lib/paths';
 import { isOnline } from '../../lib/status';
+import { showNotice } from '../../lib/toast';
 import type { Device } from '../../lib/types';
 import { iconButton, placeholder } from '../../lib/ui';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
 import TextDialog from '../ui/TextDialog';
+import Warning from '../ui/Warning';
 import KeyDialog from './KeyDialog';
 
+// Whether a source is online and when it was last seen. An active source that's offline is marked like on Summary.
 export const sourceStatus = (device: Device, now: number) => {
   const state = !device.active ? 'Inactive' : isOnline(device, now) ? 'Online' : 'Offline';
-  return `${state} · ${device.last_seen_at ? `seen ${timeAgo(device.last_seen_at, now)}` : 'never connected'}`;
+  const text = `${state} · ${device.last_seen_at ? `seen ${timeAgo(device.last_seen_at, now)}` : 'never connected'}`;
+  return state === 'Offline' ? <Warning>{text}</Warning> : text;
 };
 
 export default function SourceList() {
@@ -30,6 +34,7 @@ export default function SourceList() {
 
     try {
       const result = await api<{ id: number; key: string }>('/devices', 'POST', { name });
+      showNotice(`Added ${name}`);
       setKey(result.key);
       reload();
     } catch (e) {

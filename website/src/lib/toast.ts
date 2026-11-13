@@ -1,6 +1,8 @@
 // Errors and confirmations float above the page as alerts instead of sitting in it. Plain DOM, so the sign-in pages can use it too.
 // The holder is a manual popover in the top layer. A modal dialog makes everything outside it inert, so while one is open the holder moves into it.
 const FADE_MS = 200;
+// At most 2 alerts show, newest on top. Another one pushes out the oldest.
+const MAX_ALERTS = 2;
 
 const KINDS = {
   error: {
@@ -18,6 +20,8 @@ const KINDS = {
 };
 
 let holder: HTMLDivElement | null = null;
+// How each alert that's still showing goes away.
+const dismissals = new Map<Element, () => void>();
 
 // Moving the holder closes it, so it opens again where it lands. An open holder stays as it is, so its alerts don't appear a second time.
 const place = (box: HTMLDivElement, parent: Element) => {
@@ -63,11 +67,6 @@ const show = (kind: keyof typeof KINDS, message: string) => {
   const { role, ms, color, icon } = KINDS[kind];
   const text = sentence(message);
 
-  // The same message twice stays one alert.
-  if (holder?.matches(':popover-open') && [...holder.children].some((item) => item.textContent?.startsWith(text))) {
-    return;
-  }
-
   const box = holderElement();
   const item = document.createElement('div');
   item.setAttribute('role', role);
@@ -89,6 +88,7 @@ const show = (kind: keyof typeof KINDS, message: string) => {
   let timer = 0;
   const dismiss = () => {
     clearTimeout(timer);
+    dismissals.delete(item);
     item.classList.add('-translate-y-2', 'opacity-0');
     setTimeout(() => {
       item.remove();
@@ -101,7 +101,12 @@ const show = (kind: keyof typeof KINDS, message: string) => {
 
   close.addEventListener('click', dismiss);
   item.append(mark, body, close);
-  box.append(item);
+  // The same message again replaces the one showing, and the oldest go once there are too many.
+  [...dismissals.keys()].filter((other) => other.textContent?.startsWith(text)).forEach((other) => dismissals.get(other)?.());
+  const showing = [...dismissals.keys()];
+  showing.slice(0, Math.max(0, showing.length - MAX_ALERTS + 1)).forEach((other) => dismissals.get(other)?.());
+  dismissals.set(item, dismiss);
+  box.prepend(item);
   // Once in, an alert doesn't slide in again when the holder moves into or out of a dialog.
   setTimeout(() => item.classList.remove('starting:-translate-y-2', 'starting:opacity-0'), FADE_MS);
   timer = window.setTimeout(dismiss, ms);

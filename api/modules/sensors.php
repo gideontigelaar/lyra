@@ -30,15 +30,21 @@ function list_sensors(): never
     $db = get_db();
     require_session($db);
 
+    // Each value's latest reading, and the one from about an hour before it, so the website can show which way it's going.
     $latest = [];
     $stmt = $db->query(
-        'SELECT r.sensor_id, r.metric_id, r.value, r.measured_at
+        'SELECT r.sensor_id, r.metric_id, r.value, r.measured_at,
+                (SELECT e.value FROM readings e
+                 WHERE e.sensor_id = r.sensor_id AND e.metric_id = r.metric_id
+                   AND e.measured_at <= r.measured_at - INTERVAL 1 HOUR AND e.measured_at > r.measured_at - INTERVAL 2 HOUR
+                 ORDER BY e.measured_at DESC
+                 LIMIT 1) AS hour_before
          FROM (SELECT sensor_id, metric_id, MAX(measured_at) AS measured_at FROM readings GROUP BY sensor_id, metric_id) l
          JOIN readings r USING (sensor_id, metric_id, measured_at)'
     );
 
     foreach ($stmt as $row) {
-        $latest[$row['sensor_id']][$row['metric_id']] = ['value' => $row['value'], 'measured_at' => iso_time($row['measured_at'])];
+        $latest[$row['sensor_id']][$row['metric_id']] = ['value' => $row['value'], 'measured_at' => iso_time($row['measured_at']), 'hour_before' => $row['hour_before']];
     }
 
     $metrics = [];
@@ -59,6 +65,7 @@ function list_sensors(): never
         ];
     }
 
+    $batteries = battery_days_left($db);
     $sinks = [];
 
     foreach ($db->query('SELECT sensor_id, sink FROM sensor_sinks ORDER BY sink') as $row) {
@@ -76,10 +83,73 @@ function list_sensors(): never
             'device' => $row['device_id'],
             'metrics' => $metrics[$row['sensor_id']] ?? [],
             'sinks' => $sinks[$row['sensor_id']] ?? [],
+            'battery_days_left' => $batteries[$row['sensor_id']] ?? null,
         ];
     }
 
     respond(200, ['sensors' => $sensors]);
+}
+
+// How many days each battery has left at the rate it dropped, from its daily levels of the last 90 days.
+function battery_days_left(PDO $db): array
+{
+    $levels = [];
+    $stmt = $db->query(
+        "SELECT r.sensor_id, DATEDIFF(r.measured_at, CURRENT_TIMESTAMP) AS day, AVG(r.value) AS level
+         FROM metrics m
+         JOIN sensor_metrics sm USING (metric_id)
+         JOIN readings r ON r.sensor_id = sm.sensor_id AND r.metric_id = sm.metric_id AND r.measured_at > CURRENT_TIMESTAMP - INTERVAL 90 DAY
+         WHERE m.name = 'battery' AND sm.is_active = 1
+         GROUP BY r.sensor_id, day
+         ORDER BY r.sensor_id, day"
+    );
+
+    foreach ($stmt as $row) {
+        $levels[$row['sensor_id']][] = [(int) $row['day'], (float) $row['level']];
+    }
+
+    return array_filter(array_map('days_left', $levels), fn (?int $days) => $days !== null);
+}
+
+// A straight line through the daily levels since the battery was last replaced, where it jumped up 10 points or more.
+// It takes a week of levels that dropped at least 2 points to tell, and more than 5 years left isn't dropping really.
+function days_left(array $levels): ?int
+{
+    $start = 0;
+
+    foreach ($levels as $i => [, $level]) {
+        if ($i > 0 && $level - $levels[$i - 1][1] >= 10) {
+            $start = $i;
+        }
+    }
+
+    $levels = array_slice($levels, $start);
+    $count = count($levels);
+    $span = $count ? end($levels)[0] - $levels[0][0] : 0;
+
+    if ($count < 3 || $span < 7) {
+        return null;
+    }
+
+    $mean_day = array_sum(array_column($levels, 0)) / $count;
+    $mean_level = array_sum(array_column($levels, 1)) / $count;
+    $covariance = 0.0;
+    $variance = 0.0;
+
+    foreach ($levels as [$day, $level]) {
+        $covariance += ($day - $mean_day) * ($level - $mean_level);
+        $variance += ($day - $mean_day) ** 2;
+    }
+
+    $slope = $covariance / $variance;
+
+    if ($slope * $span > -2) {
+        return null;
+    }
+
+    $days = end($levels)[1] / -$slope;
+
+    return $days > 5 * 365 ? null : (int) round(max(0, $days));
 }
 
 function create_sensor(): never

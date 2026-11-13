@@ -102,8 +102,7 @@ export default function DataPage({ params }: { params: Params }) {
 
     try {
       await api('/readings', 'DELETE', { sensor: sensorId, metric: metricName, ranges });
-      const count = ranges.length;
-      showNotice(confirming === 'all' ? `Deleted ${date ? "this day's" : 'all'} ${what}` : `Deleted ${count} ${date ? 'reading' : 'day'}${count === 1 ? '' : 's'}`);
+      showNotice(`Deleted ${deleting}`);
       setConfirming(null);
       restart();
     } catch (e) {
@@ -120,14 +119,17 @@ export default function DataPage({ params }: { params: Params }) {
       return next;
     });
 
-  const what = `${style.label.toLowerCase()} data`;
+  // What a deletion covers, said the same way in the question and the alert after it. A day's readings are all loaded, so they're counted too.
+  const name = style.label.toLowerCase();
+  const count = confirming === 'all' ? (date ? items.length : null) : selected.size;
+  const deleting = count === null ? `all ${name} data` : date ? `${count} ${name} reading${count === 1 ? '' : 's'}` : `${count} day${count === 1 ? '' : 's'} of ${name} data`;
 
   return (
     <>
       <PageHeader
-        title={date ? formatDate(date, 'dateLong') : 'All Recorded Data'}
-        subtitle={date ? style.label : undefined}
-        back={date ? { href: dataPath(sensorId, metricName), label: 'All Data' } : { href: sensorPath(sensorId, metricName), label: sensor?.name ?? 'Sensor' }}
+        title={date ? formatDate(date, 'dateLong') : `${style.label} Data`}
+        subtitle={date ? `${sensor?.name ?? ''} · ${style.label}` : sensor?.name}
+        back={date ? { href: dataPath(sensorId, metricName), label: `${style.label} Data` } : { href: sensorPath(sensorId, metricName), label: sensor?.name ?? 'Sensor' }}
         actions={
           editing ? (
             <>
@@ -184,20 +186,8 @@ export default function DataPage({ params }: { params: Params }) {
           </button>
         </div>
       )}
-      <ConfirmDialog
-        open={confirming !== null}
-        title={confirming === 'all' ? `Delete all ${what}?` : `Delete ${selected.size} ${date ? 'reading' : 'day'}${selected.size === 1 ? '' : 's'}?`}
-        confirm="Delete"
-        busy={busy}
-        onClose={() => setConfirming(null)}
-        onConfirm={remove}
-      >
-        {confirming === 'all'
-          ? date
-            ? `Every ${what} from this day is permanently deleted.`
-            : `Every ${what} recorded for this sensor is permanently deleted.`
-          : 'The selected data is permanently deleted.'}{' '}
-        This can't be undone.
+      <ConfirmDialog open={confirming !== null} title={`Delete ${deleting}?`} confirm="Delete" busy={busy} onClose={() => setConfirming(null)} onConfirm={remove}>
+        {sensor ? `${sensor.name}'s other values are kept.` : "The sensor's other values are kept."} This can't be undone.
       </ConfirmDialog>
     </>
   );

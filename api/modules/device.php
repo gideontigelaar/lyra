@@ -50,7 +50,7 @@ function list_device_sensors(): never
     $device_id = authenticate_device($db);
 
     $stmt = $db->prepare(
-        'SELECT s.address, MIN(IF(sm.is_active, sm.report_interval, NULL)) AS relay
+        'SELECT s.address, MAX(sm.is_active) AS active, MIN(IF(sm.is_active, sm.report_interval, NULL)) AS shortest
          FROM sensors s
          LEFT JOIN sensor_metrics sm USING (sensor_id)
          WHERE s.device_id = ?
@@ -60,8 +60,13 @@ function list_device_sensors(): never
     $stmt->execute([$device_id]);
     $sensors = [];
 
+    // While the API can't be reached, a source keeps each kind of broadcast once per offline interval, the shortest recording interval.
     foreach ($stmt as $row) {
-        $sensors[] = ['address' => $row['address'], 'interval' => $row['relay'] ?? RELAY_SECONDS];
+        $sensors[] = [
+            'address' => $row['address'],
+            'interval' => $row['active'] !== null && !$row['active'] ? IDLE_RELAY_SECONDS : RELAY_SECONDS,
+            'offline_interval' => $row['shortest'] ?? IDLE_RELAY_SECONDS,
+        ];
     }
 
     respond(200, ['sensors' => $sensors]);
@@ -145,10 +150,53 @@ function store_telemetry(): never
         $telemetry['build'] = $data['build'];
     }
 
+    $stmt = $db->prepare('SELECT telemetry FROM devices WHERE device_id = ?');
+    $stmt->execute([$device_id]);
+    $previous = $stmt->fetchColumn();
+    $counts = count_changes($previous === null ? null : json_decode($previous, true, 4, JSON_THROW_ON_ERROR), $telemetry);
+
+    $db->beginTransaction();
     $db->prepare('UPDATE devices SET telemetry = ?, telemetry_at = CURRENT_TIMESTAMP WHERE device_id = ?')
         ->execute([json_encode($telemetry, JSON_UNESCAPED_SLASHES), $device_id]);
 
+    if (array_sum($counts) > 0) {
+        $db->prepare(
+            'INSERT INTO device_counts (device_id, day, restarts, wifi_reconnects, dropped) VALUES (?, UTC_DATE(), ?, ?, ?)
+             ON DUPLICATE KEY UPDATE restarts = restarts + VALUES(restarts), wifi_reconnects = wifi_reconnects + VALUES(wifi_reconnects), dropped = dropped + VALUES(dropped)'
+        )->execute([$device_id, $counts['restarts'], $counts['wifi_reconnects'], $counts['dropped']]);
+    }
+
+    $db->prepare('DELETE FROM device_counts WHERE device_id = ? AND day <= UTC_DATE() - INTERVAL ' . COUNT_DAYS . ' DAY')->execute([$device_id]);
+    $db->commit();
+
     respond_empty();
+}
+
+// What happened since a source's previous report. Its boot count only goes up, and its reconnects and dropped broadcasts
+// count from its last restart, so they become counts per day that only say what happened lately.
+function count_changes(?array $previous, array $report): array
+{
+    $counts = ['restarts' => 0, 'wifi_reconnects' => 0, 'dropped' => 0];
+
+    if ($previous === null) {
+        return $counts;
+    }
+
+    $restarted = isset($report['boots'], $previous['boots'])
+        ? $report['boots'] !== $previous['boots']
+        : isset($report['uptime'], $previous['uptime']) && $report['uptime'] < $previous['uptime'];
+
+    if ($restarted) {
+        $counts['restarts'] = isset($report['boots'], $previous['boots']) && $report['boots'] > $previous['boots'] ? $report['boots'] - $previous['boots'] : 1;
+    }
+
+    foreach (['wifi_reconnects', 'dropped'] as $field) {
+        if (isset($report[$field])) {
+            $counts[$field] = $restarted ? $report[$field] : max(0, $report[$field] - ($previous[$field] ?? 0));
+        }
+    }
+
+    return $counts;
 }
 
 return [

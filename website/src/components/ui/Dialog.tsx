@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import { Fragment, type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { releaseAlerts } from '../../lib/toast';
 
 interface Props {
@@ -73,8 +73,19 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
     return () => clearTimeout(timer);
   }, [open]);
 
-  // iOS scrolls the page under a modal dialog, and with the keyboard open it pans the whole view. So a swipe only scrolls
-  // something in the dialog that can still scroll that way, like modal dialogs in other libraries do. Pinch zoom and fields stay as they are.
+  // A page can go away with its dialog still open, like after removing what it showed. Its alerts stay up, like when it closes.
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    return () => {
+      if (dialog) {
+        releaseAlerts(dialog);
+      }
+    };
+  }, []);
+
+  // iOS scrolls the page under a modal dialog, and with the keyboard open it pans the whole view, the dialog with it. So a swipe only scrolls
+  // something in the dialog that can still scroll that way, like modal dialogs in other libraries do, also when it starts on a field. Pinch zoom stays as it is,
+  // and holding a field to move its cursor too, as iOS takes that touch over.
   useEffect(() => {
     if (!open) {
       return;
@@ -87,7 +98,7 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
       const down = y > last;
       last = y;
 
-      if (event.touches.length > 1 || (event.target instanceof Element && event.target.closest('input, textarea, select'))) {
+      if (event.touches.length > 1) {
         return;
       }
 
@@ -112,6 +123,7 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
   }, [open]);
 
   // The on-screen keyboard covers the bottom of the layout viewport on iOS, so the dialog keeps above it, also when iOS moves the view to show a field.
+  // --keyboard is how much the keyboard covers, so the dialog is never taller than what's left, and --bottom where the view ends, to sit on. Zooming in changes neither.
   useEffect(() => {
     const viewport = window.visualViewport;
     const dialog = ref.current;
@@ -120,7 +132,15 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
       return;
     }
 
-    const update = () => dialog.style.setProperty('--keyboard', `${Math.max(0, Math.round(window.innerHeight - viewport.height - viewport.offsetTop))}px`);
+    const update = () => {
+      if (viewport.scale > 1.01) {
+        return;
+      }
+
+      const keyboard = Math.max(0, Math.round(window.innerHeight - viewport.height));
+      dialog.style.setProperty('--keyboard', `${keyboard}px`);
+      dialog.style.setProperty('--bottom', `${Math.max(0, keyboard - Math.round(viewport.offsetTop))}px`);
+    };
     update();
     viewport.addEventListener('resize', update);
     viewport.addEventListener('scroll', update);
@@ -142,7 +162,7 @@ export default function Dialog({ open, title, onClose, variant = 'sheet', childr
         onClose();
       }}
       onClick={(event) => event.target === ref.current && onClose()}
-      className={`m-auto outline-none max-h-[calc(100dvh-var(--keyboard,0px)-2rem)] w-[min(30rem,calc(100%-2rem))] overflow-y-auto overscroll-contain rounded-3xl bg-bg p-6 text-inherit shadow-2xl transition duration-200 ease-out backdrop:bg-navy-950/40 backdrop:backdrop-blur-sm backdrop:transition-opacity backdrop:duration-200 starting:opacity-0 starting:backdrop:opacity-0 data-closing:opacity-0 data-closing:backdrop:opacity-0 max-sm:bottom-(--keyboard,0px) dark:bg-navy-900 dark:ring-1 dark:ring-white/10 dark:[--fill:oklch(0.34_0.05_265/0.8)] dark:[--line:var(--color-navy-700)] dark:[--surface:var(--color-navy-800)] ${
+      className={`m-auto outline-none max-h-[calc(100dvh-var(--keyboard,0px)-2rem)] w-[min(30rem,calc(100%-2rem))] overflow-y-auto overscroll-contain rounded-3xl bg-bg p-6 text-inherit shadow-2xl transition duration-200 ease-out backdrop:bg-navy-950/40 backdrop:backdrop-blur-sm backdrop:transition-opacity backdrop:duration-200 starting:opacity-0 starting:backdrop:opacity-0 data-closing:opacity-0 data-closing:backdrop:opacity-0 max-sm:bottom-(--bottom,0px) dark:bg-navy-900 dark:ring-1 dark:ring-white/10 dark:[--fill:oklch(0.41_0.065_265/0.8)] dark:[--line:var(--color-navy-700)] dark:[--surface:var(--color-navy-800)] ${
         sheet
           ? 'pb-[max(1.5rem,calc(env(safe-area-inset-bottom)-var(--keyboard,0px)))] starting:translate-y-4 data-closing:translate-y-4 max-sm:mb-0 max-sm:max-h-[calc(100dvh-var(--keyboard,0px)-env(safe-area-inset-top)-1rem)] max-sm:w-full max-sm:max-w-none max-sm:rounded-b-none sm:starting:translate-y-0 sm:starting:scale-95 sm:data-closing:translate-y-0 sm:data-closing:scale-95'
           : ''

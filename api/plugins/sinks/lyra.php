@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-const INTERVAL_TOLERANCE = 0.9;
 
 return [
     'label' => 'Lyra',
@@ -15,7 +14,8 @@ return [
             $last->execute([$sensor_id, $metric['id']]);
             $previous = $last->fetchColumn();
 
-            if ($previous === null || $time - (int) $previous >= $metric['interval'] * INTERVAL_TOLERANCE) {
+            // Half a relay early is in time, so values are stored at their interval on average.
+            if ($previous === null || $time - (int) $previous >= $metric['interval'] - RELAY_SECONDS / 2) {
                 $insert->execute([$sensor_id, $metric['id'], $metric['value'], $time]);
                 $stored += $insert->rowCount();
             }

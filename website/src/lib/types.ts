@@ -1,6 +1,8 @@
 export interface Latest {
   value: number;
   measured_at: string;
+  // The reading 1 to 2 hours before, in the unit it's stored in, if there's one.
+  hour_before: number | null;
 }
 
 export interface SensorMetric {
@@ -9,6 +11,8 @@ export interface SensorMetric {
   interval: number;
   active: boolean;
   latest: Latest | null;
+  // How much it changed over the hour before the latest reading, in the unit it's stored in. Worked out when loading.
+  change: number | null;
 }
 
 export interface Sensor {
@@ -19,6 +23,10 @@ export interface Sensor {
   device: number | null;
   metrics: SensorMetric[];
   sinks: string[];
+  // How many days its battery has left at the rate it dropped, or null while the API can't tell yet.
+  battery_days_left: number | null;
+  // From its latest temperature and humidity, when it doesn't record a dew point of its own. Worked out when loading.
+  dewPoint: number | null;
 }
 
 export interface Telemetry {
@@ -36,6 +44,13 @@ export interface Telemetry {
   build?: string;
 }
 
+// What happened to a source over the last 7 days.
+interface Counts {
+  restarts: number;
+  wifi_reconnects: number;
+  dropped: number;
+}
+
 export interface Device {
   id: number;
   name: string;
@@ -43,6 +58,7 @@ export interface Device {
   last_seen_at: string | null;
   telemetry: Telemetry | null;
   telemetry_at: string | null;
+  counts: Counts | null;
   sensors: number[];
 }
 
@@ -71,15 +87,20 @@ export interface Point {
   avg: number;
 }
 
+// A line under a card's value: the high and low of the last 24 hours, or the dew point.
+export type Detail = 'range' | 'dew_point';
+
 interface CardBase {
   size: 'small' | 'large';
+  // Alone in its row, the card sits at the right end of it, where it was dropped.
+  end?: true;
 }
 
 export type Card = CardBase &
   (
-    | { type: 'metric'; sensor: number; metric: string; graph: boolean }
+    | { type: 'metric'; sensor: number; metric: string; graph: boolean; detail: Detail | null }
     | { type: 'sensor'; sensor: number; metric: null; metrics: string[]; graph: boolean }
-    | { type: 'combined'; sensor: null; metric: string; sensors: number[]; graph: boolean }
+    | { type: 'combined'; sensor: null; metric: string; sensors: number[]; graph: boolean; detail: Detail | null }
     | { type: 'batteries'; sensor: null; metric: null; sensors: number[] }
     | { type: 'source'; sensor: null; metric: null; source: number }
   );

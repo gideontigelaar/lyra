@@ -11,6 +11,8 @@ struct Advert {
     uint8_t  length;
     int8_t   rssi;
     uint32_t received_ms;
+    // Unix time, or 0 while the clock isn't set.
+    uint32_t received_at;
 };
 
 class BleScanner : public NimBLEScanCallbacks {

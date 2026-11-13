@@ -11,34 +11,46 @@ interface Props {
 }
 
 export default function Diagnostics({ device, temperature, now }: Props) {
-  const telemetry = device.telemetry;
+  const { telemetry, counts } = device;
   const rows: [string, string | undefined][] = telemetry
     ? [
         ['Last report', device.telemetry_at ? timeAgo(device.telemetry_at, now) : undefined],
         ['Uptime', telemetry.uptime === undefined ? undefined : duration(telemetry.uptime)],
-        ['Boot count', telemetry.boots?.toString()],
         ['Last restart', telemetry.reset_reason && restartReason(telemetry.reset_reason)],
         ['Wi-Fi signal', telemetry.rssi === undefined ? undefined : `${signal(telemetry.rssi).label} (${dbm(telemetry.rssi)})`],
-        ['Wi-Fi reconnects', telemetry.wifi_reconnects?.toString()],
         ['Free memory', telemetry.free_heap === undefined ? undefined : kilobytes(telemetry.free_heap)],
         ['Lowest free memory', telemetry.min_free_heap === undefined ? undefined : kilobytes(telemetry.min_free_heap)],
         ['Largest free block', telemetry.largest_block === undefined ? undefined : kilobytes(telemetry.largest_block)],
         ['Chip temperature', telemetry.temperature === undefined ? undefined : `${formatNumber(temperature.convert(telemetry.temperature), 1)}${temperature.unit}`],
         ['Queued broadcasts', telemetry.pending?.toString()],
-        ['Dropped broadcasts', telemetry.dropped?.toString()],
         ['Firmware built', telemetry.build],
+      ]
+    : [];
+  // Counts of a recent stretch, so they say how it's doing now instead of adding up for good.
+  const recent: [string, number][] = counts
+    ? [
+        ['Restarts', counts.restarts],
+        ['Wi-Fi reconnects', counts.wifi_reconnects],
+        ['Dropped broadcasts', counts.dropped],
       ]
     : [];
 
   return (
     <Fold title="Diagnostics" hint="Uptime, restarts, Wi-Fi, memory">
-      <Section footer="The source reports this every 5 minutes.">
+      <Section footer={counts ? undefined : 'The source reports this every 5 minutes.'}>
         {telemetry ? (
           rows.filter(([, value]) => value !== undefined).map(([label, value]) => <Row key={label} label={label} detail={value} />)
         ) : (
           <Row label={<span className="text-muted">No reports yet</span>} />
         )}
       </Section>
+      {counts && (
+        <Section title="Last 7 Days" footer="The source reports this every 5 minutes.">
+          {recent.map(([label, value]) => (
+            <Row key={label} label={label} detail={formatNumber(value, 0)} />
+          ))}
+        </Section>
+      )}
     </Fold>
   );
 }

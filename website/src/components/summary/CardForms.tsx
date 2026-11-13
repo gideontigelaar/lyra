@@ -1,8 +1,8 @@
 import { CheckIcon, PlusIcon } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
-import { MAX_PER_CARD, batteryLimit, canCombine, cardKey, fitValues, valueLimit } from '../../lib/cards';
+import { MAX_PER_CARD, batteryLimit, canCombine, cardKey, detailsFor, fitValues, valueLimit } from '../../lib/cards';
 import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
-import type { Card, Device, Sensor } from '../../lib/types';
+import type { Card, Detail, Device, Sensor } from '../../lib/types';
 import { group, placeholder, row, sectionTitle, widePrimaryButton } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import { Row } from '../ui/List';
@@ -101,6 +101,19 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
   );
 }
 
+const DETAILS = { none: 'None', range: 'High and low', dew_point: 'Dew point' };
+
+// A line under the value, with the high and low of the same 24 hours as the graph, or the dew point.
+function DetailPicker({ options, value, onChange }: { options: Detail[]; value: Detail | null; onChange: (detail: Detail | null) => void }) {
+  return (
+    <>
+      <h3 className={`${sectionTitle} mt-5 mb-2 px-1`}>Under the value</h3>
+      <Segmented label="Under the value" options={['none', ...options]} value={value ?? 'none'} onChange={(next) => onChange(next === 'none' ? null : next)} text={(option) => DETAILS[option]} />
+      <p className="mt-2 px-4 text-footnote text-muted">High and low are of the last 24 hours.</p>
+    </>
+  );
+}
+
 const sensorOptions = (sensors: Sensor[]) => sensors.map((sensor) => ({ key: sensor.id, label: sensor.name }));
 
 // One value makes a value card, more make a sensor card. A new card with more values is large, so they have room.
@@ -110,10 +123,15 @@ export function ValuesForm({ sensor, ...props }: FormProps & { sensor: Sensor })
   const options = mainMetrics(sensor.metrics);
   const [picked, setPicked] = useState(() => (edited ? (edited.type === 'sensor' ? edited.metrics : [edited.metric]) : []).filter((name) => options.some((metric) => metric.name === name)));
   const [graph, setGraph] = useState(edited?.graph ?? true);
+  const [chosenDetail, setDetail] = useState(edited?.type === 'metric' ? edited.detail : null);
   // A new card is small while its values fit, and large when they don't.
   const size = edited?.size ?? (picked.length <= valueLimit('small', graph) ? 'small' : 'large');
   const max = edited ? valueLimit(edited.size, graph) : MAX_PER_CARD.sensor;
-  const card: Card = picked.length === 1 ? { type: 'metric', size, sensor: sensor.id, metric: picked[0], graph } : { type: 'sensor', size, sensor: sensor.id, metric: null, metrics: picked, graph };
+  // Only a card with one value has a line under it.
+  const details = picked.length === 1 ? detailsFor(picked[0], sensor) : [];
+  const detail = details.find((item) => item === chosenDetail) ?? null;
+  const card: Card =
+    picked.length === 1 ? { type: 'metric', size, sensor: sensor.id, metric: picked[0], graph, detail } : { type: 'sensor', size, sensor: sensor.id, metric: null, metrics: picked, graph };
 
   if (!options.length) {
     return <p className={placeholder}>No values yet. They show up here after the first reading.</p>;
@@ -139,13 +157,16 @@ export function ValuesForm({ sensor, ...props }: FormProps & { sensor: Sensor })
       }
       // Graphs take room, so turning them on can leave a small card fewer values.
       after={
-        <GraphSwitch
-          checked={graph}
-          onChange={(on) => {
-            setGraph(on);
-            edited && picked.length > valueLimit(edited.size, on) && setPicked(fitValues(picked, valueLimit(edited.size, on)));
-          }}
-        />
+        <>
+          <GraphSwitch
+            checked={graph}
+            onChange={(on) => {
+              setGraph(on);
+              edited && picked.length > valueLimit(edited.size, on) && setPicked(fitValues(picked, valueLimit(edited.size, on)));
+            }}
+          />
+          {details.length > 0 && <DetailPicker options={details} value={detail} onChange={setDetail} />}
+        </>
       }
     />
   );
@@ -159,9 +180,10 @@ export function AverageForm({ sensors, ...props }: FormProps & { sensors: Sensor
   const [metric, setMetric] = useState(edited?.metric ?? metrics[0]);
   const [chosen, setChosen] = useState<number[]>(edited?.sensors ?? []);
   const [graph, setGraph] = useState(edited?.graph ?? true);
+  const [detail, setDetail] = useState(edited?.detail ?? null);
   const options = sensors.filter((sensor) => sensor.metrics.some((item) => item.name === metric));
   const picked = chosen.filter((id) => options.some((sensor) => sensor.id === id));
-  const card: Card = { size: 'large', ...edited, type: 'combined', sensor: null, metric, sensors: picked, graph };
+  const card: Card = { size: 'large', ...edited, type: 'combined', sensor: null, metric, sensors: picked, graph, detail };
 
   return (
     <Group
@@ -181,7 +203,12 @@ export function AverageForm({ sensors, ...props }: FormProps & { sensors: Sensor
           </div>
         </>
       }
-      after={<GraphSwitch checked={graph} onChange={setGraph} />}
+      after={
+        <>
+          <GraphSwitch checked={graph} onChange={setGraph} />
+          <DetailPicker options={detailsFor(metric)} value={detail} onChange={setDetail} />
+        </>
+      }
     />
   );
 }

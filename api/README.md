@@ -1,11 +1,11 @@
 # Lyra API
-Takes the sensor broadcasts the boards relay, decodes them, stores the readings in MariaDB and serves the website. Runs on [api.gideontigelaar.com/lyra](https://api.gideontigelaar.com/lyra).
+Takes the sensor broadcasts the boards relay, decodes them, stores the readings in MariaDB and serves the website. It runs under `/lyra/` on a domain of its own, like `https://api.example.com/lyra/`.
 
 ## Requirements
 - PHP 8.4 with `pdo_mysql`, `openssl`, `sodium` and `mbstring`
 - MariaDB 11.8
 - Composer, on the computer you deploy from
-- Apache 2.4 with the `lyra` API project, see "Add API project" in `SERVER.md`
+- Apache 2.4 with PHP-FPM, sending requests under `/lyra/` that aren't a file to `index.php`, like `FallbackResource /lyra/index.php` does
 
 ## Database
 1. Create the database and its user, in `sudo mariadb`:
@@ -29,6 +29,16 @@ Takes the sensor broadcasts the boards relay, decodes them, stores the readings 
        PRIMARY KEY (device_id),
        UNIQUE KEY (name),
        UNIQUE KEY (api_key_hash)
+   );
+
+   CREATE TABLE device_counts (
+       device_id       SMALLINT UNSIGNED NOT NULL,
+       day             DATE              NOT NULL,
+       restarts        INT UNSIGNED      NOT NULL DEFAULT 0,
+       wifi_reconnects INT UNSIGNED      NOT NULL DEFAULT 0,
+       dropped         INT UNSIGNED      NOT NULL DEFAULT 0,
+       PRIMARY KEY (device_id, day),
+       FOREIGN KEY (device_id) REFERENCES devices (device_id) ON DELETE CASCADE
    );
 
    CREATE TABLE sensors (
@@ -138,16 +148,16 @@ Takes the sensor broadcasts the boards relay, decodes them, stores the readings 
    `metrics` fills itself: a value is added the first time a sensor sends it, with the unit and interval its decoder declares.
 
 ## Credentials
-Copy the template to the server, from the root of the repository:
+Copy the template to the server, from the root of the repository. `SERVER` is how you reach the server over SSH and `API_FOLDER` the folder the API runs from, like `/var/www/api.example.com/lyra`:
 ```bash
-scp api/creds.json.template debian-server:/var/www/api.gideontigelaar.com/lyra/creds.json
+scp api/creds.json.template SERVER:API_FOLDER/creds.json
 ```
 
-Then on the server, fill in the database password and lock the file down:
+Then on the server, fill in the database password and lock the file down, so only you and the group PHP runs the API as, `PHP_GROUP`, can read it:
 ```bash
-nano /var/www/api.gideontigelaar.com/lyra/creds.json
-sudo chown gideon:lyra /var/www/api.gideontigelaar.com/lyra/creds.json
-sudo chmod 640 /var/www/api.gideontigelaar.com/lyra/creds.json
+nano API_FOLDER/creds.json
+sudo chown YOUR_USER:PHP_GROUP API_FOLDER/creds.json
+sudo chmod 640 API_FOLDER/creds.json
 ```
 
 ## First sign-in
@@ -166,13 +176,13 @@ Store it for an hour, in `sudo mariadb lyra`:
 INSERT INTO setup_codes (code_hash, user_id, expires_at) VALUES (SHA2('SETUP_CODE', 256), (SELECT user_id FROM users WHERE name = 'USER_NAME'), CURRENT_TIMESTAMP + INTERVAL 1 HOUR);
 ```
 
-Then open [lyra.gideontigelaar.com/setup](https://lyra.gideontigelaar.com/setup) and create the passkey with it. More passkeys can be added in the website's settings, so you only need a new code when every passkey is gone.
+Then open `/setup` on the website, like `https://lyra.example.com/setup`, and create the passkey with it. More passkeys can be added in the website's settings, so you only need a new code when every passkey is gone.
 
 ## Deploying
 From the root of the repository:
 ```bash
 composer install --working-dir=api --no-dev --classmap-authoritative
-rsync -av --delete --exclude README.md --exclude creds.json.template --exclude creds.json --exclude composer.json --exclude composer.lock --exclude .DS_Store api/ debian-server:/var/www/api.gideontigelaar.com/lyra/
+rsync -av --delete --exclude README.md --exclude creds.json.template --exclude creds.json --exclude composer.json --exclude composer.lock --exclude .DS_Store api/ SERVER:API_FOLDER/
 ```
 
 Add `--dry-run` first to see what would change. Files deleted locally are deleted on the server too, except `creds.json`.
@@ -192,11 +202,11 @@ Add `--dry-run` first to see what would change. Files deleted locally are delete
 - `DELETE /lyra/passkeys/{id}`: remove a passkey
 - `GET /lyra/sessions`: the user's sessions, with browser and last use
 - `DELETE /lyra/sessions/{id}`: sign a session out
-- `GET /lyra/sensors`: every sensor with its values, latest readings and sinks
+- `GET /lyra/sensors`: every sensor with its values, latest readings and sinks. `hour_before` is the reading from 1 to 2 hours before the latest, for trends, or `null`. `battery_days_left` is how many days the battery has left at the rate it dropped, or `null` while that can't be told yet
 - `POST /lyra/sensors`: add a sensor
 - `PATCH /lyra/sensors/{id}`: change a sensor's name, source, values or sinks
 - `DELETE /lyra/sensors/{id}`: remove a sensor and all its readings
-- `GET /lyra/devices`: every source, when it was last seen, its latest telemetry and its sensors
+- `GET /lyra/devices`: every source, when it was last seen, its latest telemetry, its restarts, reconnects and dropped broadcasts of the last 7 days, and its sensors
 - `POST /lyra/devices`: add a source, returns its key once
 - `PATCH /lyra/devices/{id}`: rename a source or turn it on or off
 - `POST /lyra/devices/{id}/key`: replace a source's key
@@ -216,7 +226,7 @@ Device endpoints need the header `Authorization: Bearer KEY`. The rest use the s
 
 Response of `GET /lyra/device/sensors`:
 ```json
-{"sensors": [{"address": "A4:C1:38:2A:EF:13", "interval": 900}]}
+{"sensors": [{"address": "A4:C1:38:2A:EF:13", "interval": 60, "offline_interval": 900}]}
 ```
 
 Body of `POST /lyra/device/adverts`, with the raw broadcast as hex:
@@ -256,8 +266,8 @@ Response:
 - `bthome` reads unencrypted BTHome v2, like the pvvx firmware sends. `lyra` stores the readings here.
 - Sources and sensors are managed on the website. A new source's key is shown once, for `firmware/include/credentials.h`, and only its hash is stored. A new sensor reaches its source within 5 minutes, and each value is recorded at its metric's `default_interval` until you change it.
 - A source only relays its own sensors. A decoder declares each value it reads with its unit and default interval, see `bthome`. A value that isn't in `metrics` yet is added the first time a sensor sends it, values a decoder doesn't declare are ignored.
-- A value is stored once its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so late broadcasts still get the right time.
-- Only a source's latest telemetry is kept, and unknown fields are ignored, so newer firmware keeps working. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, and `pending` and `dropped` count broadcasts waiting in or dropped from the queue.
+- A source relays each sensor once a minute, see `RELAY_SECONDS` in `lib/pipeline.php`, as some sensors send values in broadcasts of their own. While it can't reach the API, it keeps one of each kind of broadcast per `offline_interval`, the sensor's shortest recording interval, for up to 7 days. A value is stored once its interval has passed since the last one, less half a relay, so on average at its interval. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so late broadcasts still get the right time.
+- Only a source's latest telemetry is kept, and unknown fields are ignored, so newer firmware keeps working. Its restarts, from `boots`, and its `wifi_reconnects` and `dropped`, which count from its last restart, are also added up per day in `device_counts` for the last 7 days, see `count_changes()`. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, and `pending` and `dropped` count broadcasts waiting in or dropped from the queue.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, which defaults to UTC. `before` and `after` are the bucket of the nearest reading before and after the range, however far away, or `null`, so a chart's line can carry on to its edges and across gaps.
 - A backup has the columns `time`, `metric`, `value` and `unit`, in the units readings are stored in, with a byte order mark so Excel reads it as UTF-8. Importing skips readings that are stored already, or that are within a minute of a stored reading of the same value, so a backup that overlaps what's there only adds what's missing. A value the sensor didn't have yet is added to it, also one that's new to `metrics` if the sensor's decoder declares it. Readings with an unknown value, another unit or a time in the future count as invalid. A request takes up to 5000 readings, the website sends a backup in parts.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.

@@ -1,10 +1,11 @@
+import { WarningCircleIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { exportReadings, importReadings } from '../../lib/backup';
 import { cardKey } from '../../lib/cards';
-import { clockTime, formatNumber, intervalText, unitText } from '../../lib/format';
+import { aboutDays, clockTime, formatList, formatNumber, intervalText, unitText } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
-import { dataMetrics, detailMetrics, metricStyle, sortMetrics } from '../../lib/metrics';
+import { dataMetrics, detailMetrics, lowBattery, metricStyle, sortMetrics, trendOf } from '../../lib/metrics';
 import { dataPath, sensorPath, summaryHome } from '../../lib/paths';
 import { loadPins, togglePin } from '../../lib/pins';
 import { type Params, navigate } from '../../lib/router';
@@ -23,9 +24,11 @@ import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
 import Switch from '../ui/Switch';
 import TextDialog from '../ui/TextDialog';
+import Warning from '../ui/Warning';
 import MetricChart from './MetricChart';
 
-const INTERVALS = [300, 900, 1800, 3600, 21600, 86400];
+// Like the logging intervals of other sensor apps: minutes for values that change quickly, hours or a day for ones like the battery.
+const INTERVALS = [60, 300, 600, 900, 1800, 3600, 21600, 86400];
 export default function SensorPage({ params }: { params: Params }) {
   const id = Number(params.id);
   const { data, error, reload } = useLoad(async () => {
@@ -90,25 +93,33 @@ export default function SensorPage({ params }: { params: Params }) {
     ? null
     : shown.name === 'battery'
       ? { type: 'batteries', size: 'small', sensor: null, metric: null, sensors: [id] }
-      : { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true };
+      : { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true, detail: null };
   const pinned = card !== null && currentPins.some((item) => cardKey(item) === cardKey(card));
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
+  const temperature = metrics.find((metric) => metric.name === 'temperature');
+  const dewPoint = sensor.dewPoint !== null && temperature ? `${formatNumber(sensor.dewPoint, metricStyle('dew_point').decimals)}${unitText(temperature.unit)}` : null;
   const now = Date.now();
-  let status: string | undefined;
+  const low = lowBattery(sensor);
+  // What needs attention first, marked like on Summary, or else which source relays the sensor.
+  let problem: string | null = null;
 
   if (!device) {
-    status = 'Not assigned to a source';
-  } else if (!isOnline(device, now)) {
-    status = `${device.name} is ${device.active ? 'offline' : 'inactive'}`;
-  } else if (recorded.length && !recorded.some((metric) => isFresh(metric, now))) {
-    status = `No data since ${clockTime(
+    problem = 'Not assigned to a source';
+  } else if (device.active && !isOnline(device, now)) {
+    problem = `${device.name} is offline`;
+  } else if (device.active && recorded.length && !recorded.some((metric) => isFresh(metric, now))) {
+    problem = `No data since ${clockTime(
       recorded
         .map((metric) => metric.latest!.measured_at)
         .sort()
         .at(-1)!,
       now,
     )}`;
+  } else if (low !== null) {
+    problem = `Needs a new battery · ${low}% left`;
   }
+
+  const status = problem ? <Warning>{problem}</Warning> : device && (device.active ? `Relayed by ${device.name}` : `${device.name} is inactive`);
 
   // Up to 3 tiles side by side, then rows of 2 or 3 where the last row stretches, so no tile sits alone next to a gap.
   const perRow = values.length <= 3 ? values.length : values.length === 4 ? 2 : 3;
@@ -139,11 +150,14 @@ export default function SensorPage({ params }: { params: Params }) {
                 >
                   <span className={`flex w-full items-center gap-2 ${narrow ? 'max-sm:flex-col max-sm:items-start max-sm:gap-1.5' : ''}`}>
                     <MetricChip metric={metric.name} small />
-                    <span className={`max-w-full truncate text-subheadline font-semibold ${narrow ? 'max-sm:text-footnote max-sm:tracking-tight' : ''}`}>{style.label}</span>
+                    <span className={`flex max-w-full min-w-0 items-center gap-1 text-subheadline font-semibold ${narrow ? 'max-sm:text-footnote max-sm:tracking-tight' : ''}`}>
+                      <span className="truncate">{style.label}</span>
+                      {metric.name === 'battery' && low !== null && <WarningCircleIcon weight="fill" className="size-[1.1em] shrink-0 text-warning" aria-label="Low" />}
+                    </span>
                     {metric.latest && <span className={`ml-auto shrink-0 text-footnote text-muted ${narrow ? 'max-md:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
                   </span>
                   <span className="@container w-full">
-                    <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} fit />
+                    <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} trend={trendOf(metric.name, [metric.change])} fit />
                   </span>
                 </button>
               );
@@ -169,6 +183,9 @@ export default function SensorPage({ params }: { params: Params }) {
                 />
               }
             />
+            {/* Like in a weather app, the dew point goes with the humidity. */}
+            {shown.name === 'humidity' && dewPoint && <Row label="Dew point" detail={dewPoint} />}
+            {shown.name === 'battery' && sensor.battery_days_left !== null && <Row label="Time left" detail={aboutDays(sensor.battery_days_left)} />}
             <Row label="Show All Data" href={dataPath(id, shown.name)} />
           </Section>
         </>
@@ -177,7 +194,7 @@ export default function SensorPage({ params }: { params: Params }) {
       )}
       <Fold title="Settings" hint="Recording, details, backup" defaultOpen={!shown || sensor.device === null}>
         {metrics.length > 0 && (
-          <Section title="Recording">
+          <Section title="Recording" footer="How often each value is saved.">
             {metrics.map((metric) => (
               <Row
                 key={metric.name}
@@ -226,7 +243,12 @@ export default function SensorPage({ params }: { params: Params }) {
         <Section title="Details">
           <Row label="Name" detail={sensor.name} onClick={() => setRenaming(true)} />
           <Row
-            label="Source"
+            label={
+              <span className="flex items-center gap-1.5">
+                Source
+                {sensor.device === null && <WarningCircleIcon weight="fill" className="size-[1.1em] shrink-0 text-warning" aria-label="No source" />}
+              </span>
+            }
             trailing={
               <select aria-label="Source" className={inlineSelect} value={sensor.device ?? ''} onChange={(event) => update({ device: event.target.value ? Number(event.target.value) : null })}>
                 <option value="">None</option>
@@ -254,9 +276,12 @@ export default function SensorPage({ params }: { params: Params }) {
             />
           ))}
         </Section>
-        <Section title="Backup" footer="A backup is a CSV file with every reading of this sensor. Importing one only adds the readings that aren't here yet.">
+        <Section
+          title="Backup"
+          footer={`One CSV file with every reading of ${metrics.length ? formatList(metrics.map((metric) => metricStyle(metric.name).label.toLowerCase())) : 'this sensor'}. Importing one skips the readings that are here already.`}
+        >
           <Row
-            label="Export Data"
+            label="Export All Values"
             detail={backup === 'export' ? 'Exporting…' : undefined}
             disabled={backup !== null}
             onClick={() =>
@@ -266,7 +291,7 @@ export default function SensorPage({ params }: { params: Params }) {
               })
             }
           />
-          <Row label="Import Data…" detail={typeof backup === 'number' ? `Importing… ${Math.round(backup * 100)}%` : undefined} disabled={backup !== null} onClick={() => file.current?.click()} />
+          <Row label="Import Values…" detail={typeof backup === 'number' ? `Importing… ${Math.round(backup * 100)}%` : undefined} disabled={backup !== null} onClick={() => file.current?.click()} />
         </Section>
         <input
           ref={file}

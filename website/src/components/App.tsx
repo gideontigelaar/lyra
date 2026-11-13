@@ -1,4 +1,4 @@
-import { BroadcastIcon, GearSixIcon, type Icon, SquaresFourIcon, ThermometerSimpleIcon } from '@phosphor-icons/react';
+import { BroadcastIcon, GearSixIcon, type Icon, PulseIcon, SquaresFourIcon } from '@phosphor-icons/react';
 import { type ComponentType, useEffect } from 'react';
 import { useLoad } from '../lib/load';
 import { SUMMARY } from '../lib/paths';
@@ -40,7 +40,7 @@ const ROUTES: Route[] = [
   { path: /^\/batteries\/(?<sensors>\d+(?:-\d+)*)\/$/, title: 'Batteries', summary: true, View: BatteriesPage },
   { path: /^\/sensors\/$/, title: 'Sensors', tab: 'sensors', View: SensorList },
   { path: /^\/sensors\/(?<id>\d+)\/(?:(?<metric>[\w-]+)\/)?$/, title: 'Sensor', tab: 'sensors', shared: true, View: SensorPage, page: ({ id }) => `sensor:${id}` },
-  { path: /^\/sensors\/(?<id>\d+)\/(?<metric>[\w-]+)\/data\/(?:(?<date>\d{4}-\d{2}-\d{2})\/)?$/, title: 'All Recorded Data', tab: 'sensors', shared: true, View: DataPage },
+  { path: /^\/sensors\/(?<id>\d+)\/(?<metric>[\w-]+)\/data\/(?:(?<date>\d{4}-\d{2}-\d{2})\/)?$/, title: 'Recorded Data', tab: 'sensors', shared: true, View: DataPage },
   { path: /^\/sources\/$/, title: 'Sources', tab: 'sources', View: SourceList },
   { path: /^\/sources\/(?<id>\d+)\/$/, title: 'Source', tab: 'sources', shared: true, View: SourcePage },
   { path: /^\/settings\/$/, title: 'Settings', View: Settings },
@@ -77,7 +77,7 @@ function NotFound() {
 
 const TABS: { id: Tab; label: string; href: string; Icon: Icon }[] = [
   { id: 'summary', label: 'Summary', href: '/', Icon: SquaresFourIcon },
-  { id: 'sensors', label: 'Sensors', href: '/sensors/', Icon: ThermometerSimpleIcon },
+  { id: 'sensors', label: 'Sensors', href: '/sensors/', Icon: PulseIcon },
   { id: 'sources', label: 'Sources', href: '/sources/', Icon: BroadcastIcon },
 ];
 

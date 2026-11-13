@@ -1,6 +1,7 @@
 import { batteryLevel, hasBattery, mainMetrics, metricStyle } from './metrics';
 import { SUMMARY, averagePath, batteriesPath, sensorPath, sourcePath } from './paths';
-import type { Card, Device, Sensor, SensorMetric } from './types';
+import { hasDewPoint } from './sensors';
+import type { Card, Detail, Device, Sensor, SensorMetric } from './types';
 
 // The most a large card holds: values on a sensor card, sensors on a batteries card. A small card holds 3.
 // An average is one value, over up to 3 sensors on a card of either size.
@@ -95,7 +96,7 @@ export const defaultCards = (sensors: Sensor[]): Card[] => {
   const metrics = sensors.length === 1 ? mainMetrics(sensors[0].metrics.filter((metric) => metric.active)) : [];
 
   return metrics.length
-    ? metrics.map((metric) => ({ type: 'metric', size: 'large', sensor: sensors[0].id, metric: metric.name, graph: true }))
+    ? metrics.map((metric) => ({ type: 'metric', size: 'large', sensor: sensors[0].id, metric: metric.name, graph: true, detail: null }))
     : sensors.map((sensor) => ({ type: 'sensor', size: 'large', sensor: sensor.id, metric: null, metrics: sensorValues(sensor), graph: true }));
 };
 
@@ -107,7 +108,10 @@ const members = (ids: unknown, metric: string, min: number, max: number, sensors
   return list.length >= min ? list : null;
 };
 
-const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, graph: shown, source }: Record<string, unknown>, sensors: Sensor[], devices: Device[]): Card | null => {
+// A dew point goes with a sensor's temperature or humidity. A high and low go with any value, also an average.
+export const detailsFor = (metric: string, sensor?: Sensor): Detail[] => (sensor && hasDewPoint(sensor) && (metric === 'temperature' || metric === 'humidity') ? ['range', 'dew_point'] : ['range']);
+
+const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, graph: shown, source, detail: line }: Record<string, unknown>, sensors: Sensor[], devices: Device[]): Card | null => {
   if (size !== 'small' && size !== 'large') {
     return null;
   }
@@ -122,7 +126,7 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, grap
     }
     case 'combined': {
       const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, 2, MAX_PER_CARD.combined, sensors) : null;
-      return list && { type, size, sensor: null, metric: metric as string, sensors: list, graph };
+      return list && { type, size, sensor: null, metric: metric as string, sensors: list, graph, detail: line === 'range' ? line : null };
     }
     case 'sensor': {
       const found = sensors.find((item) => item.id === sensor);
@@ -143,7 +147,18 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, grap
       return list
         ? { type: 'batteries', size, sensor: null, metric: null, sensors: list }
         : has(sensors, sensor, metric)
-          ? { type, size, sensor: sensor as number, metric: metric as string, graph }
+          ? {
+              type,
+              size,
+              sensor: sensor as number,
+              metric: metric as string,
+              graph,
+              detail:
+                detailsFor(
+                  metric as string,
+                  sensors.find((item) => item.id === sensor),
+                ).find((item) => item === line) ?? null,
+            }
           : null;
     }
     case 'source':
@@ -158,6 +173,9 @@ export const toCards = (value: unknown, sensors: Sensor[], devices: Device[]): C
     return null;
   }
 
-  const cards = value.flatMap((card) => (typeof card === 'object' && card !== null ? (toCard(card, sensors, devices) ?? []) : []));
+  const cards = value.flatMap((item) => {
+    const card = typeof item === 'object' && item !== null ? toCard(item, sensors, devices) : null;
+    return card ? [item.end === true ? { ...card, end: true as const } : card] : [];
+  });
   return [...new Map(cards.map((card) => [cardKey(card), card])).values()];
 };

@@ -1,6 +1,7 @@
+import { ArrowDownRightIcon, ArrowUpRightIcon } from '@phosphor-icons/react';
 import type { CSSProperties } from 'react';
 import { formatNumber, unitText } from '../lib/format';
-import { metricStyle } from '../lib/metrics';
+import { type Trend, metricStyle } from '../lib/metrics';
 
 type Size = 'small' | 'medium' | 'large' | 'huge' | 'giant';
 
@@ -11,6 +12,8 @@ interface Props {
   size?: Size;
   // Shrinks the number until the value fits the nearest container, for spots where a long value like 1,014.9 hPa wouldn't.
   fit?: boolean;
+  // An arrow after the unit when the value went up or down over the last hour.
+  trend?: Trend;
 }
 
 // Each size's class, and its variable for the most a fitting value may take.
@@ -26,7 +29,7 @@ const SIZES: Record<Size, [string, string]> = {
 const numberWidth = (text: string) => [...text].reduce((sum, char) => sum + (/\d/.test(char) ? 0.66 : char === '-' ? 0.7 : 0.25), 0);
 const unitWidth = (text: string) => [...text].reduce((sum, char) => sum + (char === ' ' ? 0.27 : char === '%' ? 1 : 0.66), 0);
 
-export default function MetricValue({ metric, value, unit, size = 'large', fit = false }: Props) {
+export default function MetricValue({ metric, value, unit, size = 'large', fit = false, trend = null }: Props) {
   if (value === null) {
     return <span className="text-subheadline text-muted">No Data</span>;
   }
@@ -34,13 +37,19 @@ export default function MetricValue({ metric, value, unit, size = 'large', fit =
   const number = formatNumber(value, metricStyle(metric).decimals);
   const units = unitText(unit);
   const unitSize = size === 'giant' ? 20 : 15;
+  const Arrow = trend === 'up' ? ArrowUpRightIcon : ArrowDownRightIcon;
   // Never larger than its size, and no smaller than 12px.
-  const style = fit ? ({ '--fit': `clamp(0.75rem, calc((100cqw - ${Math.ceil(unitWidth(units) * unitSize)}px) / ${numberWidth(number)}), var(${SIZES[size][1]}))` } as CSSProperties) : undefined;
+  const style = fit
+    ? ({ '--fit': `clamp(0.75rem, calc((100cqw - ${Math.ceil((unitWidth(units) + (trend ? 1.2 : 0)) * unitSize)}px) / ${numberWidth(number)}), var(${SIZES[size][1]}))` } as CSSProperties)
+    : undefined;
 
   return (
     <span className="whitespace-nowrap tabular-nums" style={style}>
       <span className={`leading-none font-semibold tracking-tight ${fit ? 'text-(length:--fit)' : SIZES[size][0]}`}>{number}</span>
-      <span className={`font-semibold text-muted ${size === 'giant' ? 'text-xl' : 'text-subheadline'}`}>{units}</span>
+      <span className={`font-semibold text-muted ${size === 'giant' ? 'text-xl' : 'text-subheadline'}`}>
+        {units}
+        {trend && <Arrow weight="bold" role="img" aria-label={trend === 'up' ? 'Rising' : 'Falling'} className="ml-0.5 inline align-[-0.1em]" />}
+      </span>
     </span>
   );
 }

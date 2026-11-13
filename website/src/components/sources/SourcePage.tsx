@@ -1,6 +1,7 @@
 import { CheckCircleIcon, CircleIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { api } from '../../lib/api';
+import { formatList } from '../../lib/format';
 import { failure, useLoad } from '../../lib/load';
 import { sensorPath, summaryHome } from '../../lib/paths';
 import { type Params, navigate } from '../../lib/router';
@@ -59,8 +60,9 @@ export default function SourcePage({ params }: { params: Params }) {
   const sensors = data[1];
   const assigned = sensors.filter((sensor) => sensor.device === id);
   const sourceOf = (device: number | null) => data[0].devices.find((item) => item.id === device && item.id !== id);
-  // Sensors picked here that another source relays now.
+  // Sensors picked here that another source relays now, and the sources they leave.
   const moves = sensors.filter((sensor) => chosen.includes(sensor.id) && sourceOf(sensor.device));
+  const leaving = [...new Set(moves.flatMap((sensor) => sourceOf(sensor.device)?.name ?? []))];
 
   const choose = () => {
     setChosen(assigned.map((sensor) => sensor.id));
@@ -137,8 +139,7 @@ export default function SourcePage({ params }: { params: Params }) {
         onClose={() => setMoving(false)}
         onConfirm={saveChoice}
       >
-        {moves.map((sensor) => `${sensor.name} is relayed by ${sourceOf(sensor.device)?.name} now.`).join(' ')} {moves.length === 1 ? 'It moves' : 'They move'} to {device.name}, and only {device.name}{' '}
-        picks {moves.length === 1 ? 'it' : 'them'} up from then on.
+        {`${formatList(moves.map((sensor) => sensor.name))} ${moves.length === 1 ? 'moves' : 'move'} to ${device.name}. ${formatList(leaving)} ${leaving.length === 1 ? 'stops' : 'stop'} relaying ${moves.length === 1 ? 'it' : 'them'}.`}
       </ConfirmDialog>
       <TextDialog
         open={dialog === 'rename'}

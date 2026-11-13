@@ -2,6 +2,7 @@
 #include "logger.h"
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 void BleScanner::init() {
     _queue = xQueueCreate(32, sizeof(Advert));
@@ -78,6 +79,8 @@ void BleScanner::onResult(const NimBLEAdvertisedDevice* device) {
     advert.length = payload.size();
     advert.rssi = device->getRSSI();
     advert.received_ms = millis();
+    time_t now = time(nullptr);
+    advert.received_at = now >= Config::VALID_TIME ? static_cast<uint32_t>(now) : 0;
 
     xQueueSend(_queue, &advert, 0);
 }

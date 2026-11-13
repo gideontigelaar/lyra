@@ -9,7 +9,7 @@ export const themeScript = `(() => {
     } catch {}
     const dark = theme === 'dark' || (theme !== 'light' && media.matches);
     root.classList.toggle('dark', dark);
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#060c1d' : '#eef1f8');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0f1b39' : '#eef1f8');
   };
   // A later change crossfades the whole page at once, with the colour transitions of single elements paused so nothing changes on its own.
   const change = () => {

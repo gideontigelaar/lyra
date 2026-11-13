@@ -12,6 +12,7 @@ import { iconButton, placeholder } from '../../lib/ui';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
+import Warning from '../ui/Warning';
 import AddSensor from './AddSensor';
 
 export const sensorSummary = (sensor: Sensor) =>
@@ -74,7 +75,7 @@ export default function SensorList() {
                     label={
                       <>
                         <span className="block truncate">{sensor.name}</span>
-                        {note && <span className={`block truncate text-footnote ${note.warning ? 'font-semibold text-warning' : 'text-muted'}`}>{note.text}</span>}
+                        {note && <span className="block truncate text-footnote text-muted">{note.warning ? <Warning>{note.text}</Warning> : note.text}</span>}
                       </>
                     }
                     detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>}
