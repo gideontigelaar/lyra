@@ -35,6 +35,9 @@ export const formatDate = (time: number | Date, format: Format) => formatter(for
 
 export const formatDateRange = (from: number | Date, to: number | Date, format: Format) => formatter(format).formatRange(from, to);
 
+// Two clock times, like "23:00–00:00". The range formatter would add both dates when they're on different days.
+export const timeRange = (from: number | Date, to: number | Date) => `${formatDate(from, 'time')}–${formatDate(to, 'time')}`;
+
 // Like Bedroom, Kitchen and Office.
 export const formatList = (items: string[]) => list.format(items);
 

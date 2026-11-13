@@ -1,4 +1,4 @@
-import { formatDate, formatDateRange } from './format';
+import { formatDate, formatDateRange, timeRange } from './format';
 import type { Bucketing } from './types';
 import { offsetAt, sameDay, startOfDay, wall, zoned } from './zone';
 
@@ -53,7 +53,7 @@ export const periods: Record<PeriodId, Period> = {
     shift: (start, steps) => new Date(start.getTime() + steps * HOUR),
     slots: () => [],
     ticks: (start) => [0, 15, 30, 45].map((minutes) => ({ time: start.getTime() + minutes * 60000, label: formatDate(start.getTime() + minutes * 60000, 'time') })),
-    title: (start, end) => `${formatDate(start, 'dayLong')}, ${formatDateRange(start, end, 'time')}`,
+    title: (start, end) => `${formatDate(start, 'dayLong')}, ${timeRange(start, end)}`,
     slotTitle: (slot) => formatDate(slot, 'time'),
   },
   D: {
@@ -67,7 +67,7 @@ export const periods: Record<PeriodId, Period> = {
       return [0, 6, 12, 18].map((hour) => zoned(year, month, day, hour)).map((date) => ({ time: date.getTime(), label: formatDate(date, 'hour') }));
     },
     title: (start, _, now) => (sameDay(start, now) ? 'Today' : sameDay(start, startOfDay(now, -1)) ? 'Yesterday' : formatDate(start, 'dateLong')),
-    slotTitle: (slot, next) => formatDateRange(slot, next, 'time'),
+    slotTitle: (slot, next) => timeRange(slot, next),
   },
   W: {
     label: 'Week',
@@ -77,7 +77,7 @@ export const periods: Record<PeriodId, Period> = {
     slots: hours,
     ticks: (start, end) => days(start, end).map((time) => ({ time, label: formatDate(time, 'weekday') })),
     title: (start, end) => formatDateRange(start, startOfDay(end, -1), 'date'),
-    slotTitle: (slot, next) => `${formatDate(slot, 'dayLong')}, ${formatDateRange(slot, next, 'time')}`,
+    slotTitle: (slot, next) => `${formatDate(slot, 'dayLong')}, ${timeRange(slot, next)}`,
   },
   M: {
     label: 'Month',

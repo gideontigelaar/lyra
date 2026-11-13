@@ -108,8 +108,8 @@ const members = (ids: unknown, metric: string, min: number, max: number, sensors
   return list.length >= min ? list : null;
 };
 
-// A dew point goes with a sensor's temperature or humidity. A high and low go with any value, also an average.
-// The dew point only goes with the humidity, like on a sensor's page. A card that had it under its temperature shows nothing there instead.
+// A high and low go with any value, also an average. The dew point only goes with the humidity, like on a sensor's page,
+// so a card that had it under its temperature shows nothing there instead.
 export const detailsFor = (metric: string, sensor?: Sensor): Detail[] => (sensor && hasDewPoint(sensor) && metric === 'humidity' ? ['range', 'dew_point'] : ['range']);
 
 const toCard = (
