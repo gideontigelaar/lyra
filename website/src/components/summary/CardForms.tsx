@@ -26,13 +26,15 @@ function Toggle({ on, label, disabled, onClick }: { on: boolean; label: string; 
   );
 }
 
-function GraphSwitch({ checked, onChange }: { checked: boolean; onChange: (checked: boolean) => void }) {
+function OptionSwitch({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
   return (
     <div className={`${group} mt-5`}>
-      <Row label="Graph of the last 24 hours" trailing={<Switch label="Graph of the last 24 hours" checked={checked} onChange={onChange} />} />
+      <Row label={label} trailing={<Switch label={label} checked={checked} onChange={onChange} />} />
     </div>
   );
 }
+
+const GraphSwitch = (props: { checked: boolean; onChange: (checked: boolean) => void }) => <OptionSwitch label="Show 24-hour graph" {...props} />;
 
 // A card's form either adds a new card or changes the one being edited.
 interface FormProps {
@@ -107,8 +109,8 @@ const DETAILS = { none: 'None', range: 'High and low', dew_point: 'Dew point' };
 function DetailPicker({ options, value, onChange }: { options: Detail[]; value: Detail | null; onChange: (detail: Detail | null) => void }) {
   return (
     <>
-      <h3 className={`${sectionTitle} mt-5 mb-2 px-1`}>Under the value</h3>
-      <Segmented label="Under the value" options={['none', ...options]} value={value ?? 'none'} onChange={(next) => onChange(next === 'none' ? null : next)} text={(option) => DETAILS[option]} />
+      <h3 className={`${sectionTitle} mt-5 mb-2 px-1`}>Show under the value</h3>
+      <Segmented label="Show under the value" options={['none', ...options]} value={value ?? 'none'} onChange={(next) => onChange(next === 'none' ? null : next)} text={(option) => DETAILS[option]} />
       <p className="mt-2 px-4 text-footnote text-muted">High and low are of the last 24 hours.</p>
     </>
   );
@@ -217,7 +219,8 @@ export function BatteriesForm({ sensors, ...props }: FormProps & { sensors: Sens
   const edited = props.editing?.type === 'batteries' ? props.editing : undefined;
   const options = sensors.filter(hasBattery);
   const [picked, setPicked] = useState(() => edited?.sensors ?? options.slice(0, MAX_PER_CARD.batteries).map((sensor) => sensor.id));
-  const card: Card = { size: 'large', ...edited, type: 'batteries', sensor: null, metric: null, sensors: picked };
+  const [left, setLeft] = useState(edited?.left ?? true);
+  const card: Card = { size: 'large', ...edited, type: 'batteries', sensor: null, metric: null, sensors: picked, left };
   const max = edited ? batteryLimit(edited.size) : MAX_PER_CARD.batteries;
 
   return (
@@ -232,6 +235,8 @@ export function BatteriesForm({ sensors, ...props }: FormProps & { sensors: Sens
       onPick={setPicked}
       card={card}
       note={edited?.size === 'small' ? `A small card fits ${max}. Enlarge it for up to ${MAX_PER_CARD.batteries}.` : undefined}
+      // A card of one battery shows it large, with room to say how long it has left.
+      after={picked.length === 1 && <OptionSwitch label="Show time left" checked={left} onChange={setLeft} />}
     />
   );
 }

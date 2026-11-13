@@ -5,6 +5,7 @@ import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
 import { aboutDays, clockTime, formatNumber, timeAgo, unitText } from '../../lib/format';
 import { batteryLevel, hasBattery, lowBattery, metricStyle, trendOf } from '../../lib/metrics';
 import type { Spot } from '../../lib/grid';
+import { SUMMARY, sensorPath } from '../../lib/paths';
 import { rangeOf } from '../../lib/readings';
 import { isFresh, isOnline } from '../../lib/status';
 import { dbm, duration, kilobytes, signal } from '../../lib/telemetry';
@@ -204,7 +205,18 @@ const rowsOf = <T,>(items: T[], large: boolean) => {
   return Array.from({ length: Math.ceil(items.length / perRow) }, (_, i) => items.slice(i * perRow, (i + 1) * perRow));
 };
 
-function SensorBody({ card, sensors, sparks, now }: Props) {
+// A value of a sensor card opens the sensor's page on that value. It's a link of its own over the card's, so not while editing.
+function ValueArea({ href, className, children }: { href?: string; className: string; children: ReactNode }) {
+  return href ? (
+    <a href={href} className={`relative rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-accent ${className}`}>
+      {children}
+    </a>
+  ) : (
+    <div className={className}>{children}</div>
+  );
+}
+
+function SensorBody({ card, sensors, sparks, now, editing }: Props) {
   const sensor = sensors.find((item) => item.id === card.sensor)!;
   const large = card.size === 'large';
   const values = cardValues(card, sensors);
@@ -213,6 +225,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   const metrics = values.map(({ metric }) => metric);
   const time = readingTime(metrics, now);
   const chip = <Chip icon={PulseIcon} color="var(--accent)" label="Sensor" small={!large} />;
+  const href = (metric: string) => (editing ? undefined : sensorPath(sensor.id, metric, SUMMARY));
   // Without graphs the values take their room.
   const size = large
     ? graphs
@@ -247,7 +260,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
             const style = metricStyle(metric.name);
             const spark = sparks[sparkKey(sensor.id, metric.name)];
             return (
-              <div key={metric.name} className="flex min-h-0 flex-1 flex-col justify-end">
+              <ValueArea key={metric.name} href={href(metric.name)} className="flex min-h-0 flex-1 flex-col justify-end">
                 <div className="flex items-center gap-1.5">
                   <MetricIcon metric={metric.name} className="size-4.5" />
                   <span className="@container min-w-0 flex-1">
@@ -262,7 +275,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
                   </span>
                 </div>
                 {spark && <Sparkline {...spark} color={style.color} className="mt-1 min-h-3 w-full flex-1" />}
-              </div>
+              </ValueArea>
             );
           })}
         </div>
@@ -281,7 +294,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
               const style = metricStyle(metric.name);
               const spark = large && graphs ? sparks[sparkKey(sensor.id, metric.name)] : undefined;
               return (
-                <div key={metric.name} className="@container flex min-h-0 min-w-0 flex-1 flex-col justify-end">
+                <ValueArea key={metric.name} href={href(metric.name)} className="@container flex min-h-0 min-w-0 flex-1 flex-col justify-end">
                   {spark && <Sparkline {...spark} color={style.color} className={`mb-2 w-full flex-1 ${rows.length === 1 ? 'min-h-5' : 'hidden min-h-4 @[24rem]/card:block'}`} />}
                   <div className="flex items-center gap-1.5">
                     <MetricIcon metric={metric.name} className={`hidden @[7.5rem]:block ${size === 'huge' ? 'size-6' : 'size-5'}`} />
@@ -289,7 +302,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
                       <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} trend={trendOf(metric.name, [metric.change])} fit />
                     </span>
                   </div>
-                </div>
+                </ValueArea>
               );
             })}
           </div>
@@ -300,7 +313,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
 }
 
 // One battery: its level large, with a battery filled as far as it's charged and how long it has left. Batteries change too slowly for a graph to say anything.
-function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; now: number }) {
+function BatteryBody({ sensor, large, left, now }: { sensor: Sensor; large: boolean; left: boolean; now: number }) {
   const level = batteryLevel(sensor);
   const low = lowBattery(sensor) !== null;
   const battery = sensor.metrics.find((metric) => metric.name === 'battery');
@@ -319,7 +332,7 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
           </span>
         )}
       </div>
-      {sensor.battery_days_left !== null && <div className="mt-1 truncate text-footnote text-muted">{aboutDays(sensor.battery_days_left)} left</div>}
+      {left && sensor.battery_days_left !== null && <div className="mt-1 truncate text-footnote text-muted">{aboutDays(sensor.battery_days_left)} left</div>}
     </>
   );
 }
@@ -427,7 +440,7 @@ export default function SummaryCard(props: Props) {
   const shift = transform && bounds ? { ...transform, x: Math.min(Math.max(transform.x, bounds.left), bounds.right), y: Math.min(Math.max(transform.y, bounds.top), bounds.bottom) } : transform;
   const battery = card.type === 'batteries' && card.sensors.length === 1 ? sensors.find((item) => item.id === card.sensors[0] && hasBattery(item)) : undefined;
   const body = battery ? (
-    <BatteryBody sensor={battery} large={card.size === 'large'} now={props.now} />
+    <BatteryBody sensor={battery} large={card.size === 'large'} left={card.type === 'batteries' && card.left} now={props.now} />
   ) : card.type === 'source' ? (
     <SourceBody device={devices.find((device) => device.id === card.source)!} large={card.size === 'large'} now={props.now} temperature={props.temperature} />
   ) : card.type === 'sensor' ? (
@@ -438,6 +451,7 @@ export default function SummaryCard(props: Props) {
     <ValueBody {...props} />
   );
   const surface = `${cardClass} flex h-full flex-col overflow-hidden p-4`;
+  const lift = 'transition duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy-950/5 active:translate-y-0 active:scale-[0.98]';
   const control = `absolute flex size-7 items-center justify-center rounded-full shadow-md transition duration-200 ease-out ${editing ? '' : 'scale-50 opacity-0'}`;
 
   // Space picks a card up to move it with the arrow keys, Enter opens its settings.
@@ -469,8 +483,14 @@ export default function SummaryCard(props: Props) {
         >
           {body}
         </div>
+      ) : card.type === 'sensor' ? (
+        // Each value opens the sensor's page on it, the rest of the card the page as it opens by default.
+        <div className={`${surface} ${lift} relative hover:bg-fill/60 active:bg-fill has-focus-visible:bg-fill/60`}>
+          <a href={cardHref(card)} aria-label={name} className="absolute inset-0 rounded-2xl outline-none" />
+          {body}
+        </div>
       ) : (
-        <a href={cardHref(card)} className={`${surface} ${pressable} hover:-translate-y-0.5 hover:shadow-lg hover:shadow-navy-950/5 active:translate-y-0 active:scale-[0.98]`}>
+        <a href={cardHref(card)} className={`${surface} ${pressable} ${lift}`}>
           {body}
         </a>
       )}

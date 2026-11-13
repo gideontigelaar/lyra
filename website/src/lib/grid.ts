@@ -63,24 +63,49 @@ const flipped = (card: Card) => {
 
 export const rowsOf = (layout: Map<string, Spot>) => Math.max(0, ...[...layout.values()].map((spot) => spot.y + spot.h));
 
-// The order that puts a dragged card closest to where it's held, in cells from the top left, at the end of its row or not.
-export const dropOrder = (cards: Card[], key: string, x: number, y: number, columns: Columns) => {
+// Every place a dragged card can go, at the end of its row or not, with where it lands. Where it lands the same either way, it stays as it was.
+const placesOf = (cards: Card[], key: string, columns: Columns) => {
   const card = cards.find((item) => cardKey(item) === key)!;
   const rest = cards.filter((item) => item !== card);
-  let best = { order: cards, distance: Infinity };
+  const places: { order: Card[]; spot: Spot }[] = [];
 
   for (let i = 0; i <= rest.length; i++) {
-    // Where it lands the same either way, it stays as it was.
     for (const moved of [card, flipped(card)]) {
       const order = [...rest.slice(0, i), moved, ...rest.slice(i)];
-      const spot = layoutOf(order, columns).get(key)!;
-      const distance = (spot.x - x) ** 2 + (spot.y - y) ** 2;
+      places.push({ order, spot: layoutOf(order, columns).get(key)! });
+    }
+  }
 
-      if (distance < best.distance) {
-        best = { order, distance };
-      }
+  return places;
+};
+
+const nearest = (places: { order: Card[]; spot: Spot }[], x: number, y: number, fallback: Card[]) => {
+  let best = { order: fallback, distance: Infinity };
+
+  for (const { order, spot } of places) {
+    const distance = (spot.x - x) ** 2 + (spot.y - y) ** 2;
+
+    if (distance < best.distance) {
+      best = { order, distance };
     }
   }
 
   return best.order;
+};
+
+// The order that puts a dragged card closest to where it's held, in cells from the top left.
+export const dropOrder = (cards: Card[], key: string, x: number, y: number, columns: Columns) => nearest(placesOf(cards, key, columns), x, y, cards);
+
+// For the arrow keys: the closest place that's the way the card is pushed, so a key moves it whenever it can go that way.
+// Small cards fill gaps first, so the cell straight below isn't always free, and the closest place could be where it was.
+export const keyOrder = (cards: Card[], key: string, x: number, y: number, columns: Columns) => {
+  const start = layoutOf(cards, columns).get(key)!;
+  const [right, down] = [Math.sign(x - start.x), Math.sign(y - start.y)];
+
+  if (!right && !down) {
+    return cards;
+  }
+
+  const ahead = placesOf(cards, key, columns).filter(({ spot }) => (!right || Math.sign(spot.x - start.x) === right) && (!down || Math.sign(spot.y - start.y) === down));
+  return nearest(ahead, x, y, cards);
 };

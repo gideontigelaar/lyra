@@ -113,7 +113,7 @@ let dashboard: unknown = [
   { type: 'sensor', size: 'large', sensor: 1, metric: null },
   { type: 'metric', size: 'small', sensor: 4, metric: 'temperature' },
   { type: 'metric', size: 'small', sensor: 4, metric: 'humidity' },
-  { type: 'batteries', size: 'large', sensor: null, metric: null, sensors: [1, 2, 3, 4] },
+  { type: 'batteries', size: 'large', sensor: null, metric: null, sensors: [1, 2, 3, 4], left: true },
   { type: 'source', size: 'large', sensor: null, metric: null, source: 1 },
 ];
 let settings = { temperature_unit: 'celsius', time_zone: null };

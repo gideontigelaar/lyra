@@ -92,7 +92,7 @@ export default function SensorPage({ params }: { params: Params }) {
   const card: Card | null = !shown
     ? null
     : shown.name === 'battery'
-      ? { type: 'batteries', size: 'small', sensor: null, metric: null, sensors: [id] }
+      ? { type: 'batteries', size: 'small', sensor: null, metric: null, sensors: [id], left: true }
       : { type: 'metric', size: 'small', sensor: id, metric: shown.name, graph: true, detail: null };
   const pinned = card !== null && currentPins.some((item) => cardKey(item) === cardKey(card));
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);

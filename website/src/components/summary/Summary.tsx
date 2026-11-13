@@ -3,7 +3,7 @@ import { ArrowUUpLeftIcon, ArrowUUpRightIcon, PlusIcon } from '@phosphor-icons/r
 import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { api } from '../../lib/api';
 import { batteryLimit, cardKey, cardValues, defaultCards, fitBatteries, fitValues, sparkKey, toCards, valueLimit } from '../../lib/cards';
-import { type Columns, type Spot, dropOrder, layoutOf, rowsOf } from '../../lib/grid';
+import { type Columns, type Spot, dropOrder, keyOrder, layoutOf, rowsOf } from '../../lib/grid';
 import { failure, useLoad } from '../../lib/load';
 import { fetchPoints } from '../../lib/readings';
 import { loadSensors } from '../../lib/sensors';
@@ -173,7 +173,7 @@ export default function Summary() {
     setOrder({ key, cards, rows: room, bounds });
   };
 
-  const onDragMove = ({ active, delta }: DragMoveEvent) => {
+  const onDragMove = ({ active, delta, activatorEvent }: DragMoveEvent) => {
     const key = String(active.id);
     const spot = layout.get(key);
 
@@ -184,7 +184,7 @@ export default function Summary() {
     const { bounds } = drag.current;
     const x = Math.min(Math.max(delta.x, bounds.left), bounds.right);
     const y = Math.min(Math.max(delta.y, bounds.top), bounds.bottom);
-    const next = dropOrder(cards, key, spot.x + x / pitch(), spot.y + y / pitch(), columns);
+    const next = (activatorEvent instanceof KeyboardEvent ? keyOrder : dropOrder)(cards, key, spot.x + x / pitch(), spot.y + y / pitch(), columns);
     const same = (list: Card[]) => list.every((card, i) => card === next[i]);
     drag.current.delta = { x, y };
     setOrder((current) => (current && same(current.cards) ? current : current && { ...current, cards: next }));

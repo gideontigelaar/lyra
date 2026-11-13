@@ -109,20 +109,26 @@ const members = (ids: unknown, metric: string, min: number, max: number, sensors
 };
 
 // A dew point goes with a sensor's temperature or humidity. A high and low go with any value, also an average.
-export const detailsFor = (metric: string, sensor?: Sensor): Detail[] => (sensor && hasDewPoint(sensor) && (metric === 'temperature' || metric === 'humidity') ? ['range', 'dew_point'] : ['range']);
+// The dew point only goes with the humidity, like on a sensor's page. A card that had it under its temperature shows nothing there instead.
+export const detailsFor = (metric: string, sensor?: Sensor): Detail[] => (sensor && hasDewPoint(sensor) && metric === 'humidity' ? ['range', 'dew_point'] : ['range']);
 
-const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, graph: shown, source, detail: line }: Record<string, unknown>, sensors: Sensor[], devices: Device[]): Card | null => {
+const toCard = (
+  { type, size, sensor, metric, sensors: ids, metrics: names, graph: shown, left: estimate, source, detail: line }: Record<string, unknown>,
+  sensors: Sensor[],
+  devices: Device[],
+): Card | null => {
   if (size !== 'small' && size !== 'large') {
     return null;
   }
 
   const graph = shown !== false;
+  const left = estimate !== false;
 
   switch (type) {
     case 'batteries': {
       // Batteries cards saved before sensors could be picked showed every battery.
       const list = members(ids ?? sensors.filter(hasBattery).map((item) => item.id), 'battery', 1, Infinity, sensors);
-      return list && { type, size, sensor: null, metric: null, sensors: fitBatteries(list, batteryLimit(size), sensors) };
+      return list && { type, size, sensor: null, metric: null, sensors: fitBatteries(list, batteryLimit(size), sensors), left };
     }
     case 'combined': {
       const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, 2, MAX_PER_CARD.combined, sensors) : null;
@@ -145,7 +151,7 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, grap
       // A battery card saved as a value card becomes a batteries card of that sensor.
       const list = metric === 'battery' ? members([sensor], 'battery', 1, 1, sensors) : null;
       return list
-        ? { type: 'batteries', size, sensor: null, metric: null, sensors: list }
+        ? { type: 'batteries', size, sensor: null, metric: null, sensors: list, left }
         : has(sensors, sensor, metric)
           ? {
               type,

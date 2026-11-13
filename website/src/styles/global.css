@@ -28,13 +28,13 @@
   --color-navy-100: oklch(0.96 0.011 265);
   --color-navy-200: oklch(0.92 0.02 265);
   --color-navy-300: oklch(0.86 0.032 265);
-  --color-navy-400: oklch(0.73 0.048 265);
-  --color-navy-500: oklch(0.6 0.06 265);
-  --color-navy-600: oklch(0.5 0.066 265);
-  --color-navy-700: oklch(0.415 0.07 265);
-  --color-navy-800: oklch(0.34 0.07 265);
-  --color-navy-900: oklch(0.28 0.066 265);
-  --color-navy-950: oklch(0.23 0.06 265);
+  --color-navy-400: oklch(0.725 0.046 265);
+  --color-navy-500: oklch(0.59 0.057 265);
+  --color-navy-600: oklch(0.485 0.063 265);
+  --color-navy-700: oklch(0.392 0.065 265);
+  --color-navy-800: oklch(0.305 0.062 265);
+  --color-navy-900: oklch(0.242 0.056 265);
+  --color-navy-950: oklch(0.195 0.049 265);
 }
 
 :root {
@@ -61,7 +61,7 @@
   --surface: var(--color-navy-900);
   --line: var(--color-navy-800);
   --muted: var(--color-navy-400);
-  --fill: oklch(0.37 0.06 265 / 0.8);
+  --fill: oklch(0.335 0.055 265 / 0.8);
   --accent: #6aa5ec;
   --danger: #f97066;
   --metric-temperature: #f0773b;
@@ -72,10 +72,11 @@
   --status-warning: #f5b031;
 }
 
-/* Tailwind's preflight gives buttons the default cursor. Its upgrade guide restores the pointer like this. */
+/* Tailwind's preflight gives buttons the default cursor. Its upgrade guide restores the pointer like this, here also for menus. */
 @layer base {
   button:not(:disabled),
-  [role="button"]:not(:disabled) {
+  [role="button"]:not(:disabled),
+  select:not(:disabled) {
     cursor: pointer;
   }
 }
