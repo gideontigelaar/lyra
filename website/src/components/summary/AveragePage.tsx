@@ -4,7 +4,7 @@ import { metricStyle } from '../../lib/metrics';
 import { sensorPath } from '../../lib/paths';
 import type { Params } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
-import { card } from '../../lib/ui';
+import { card, placeholder } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import MetricValue from '../MetricValue';
 import MetricChart from '../sensors/MetricChart';
@@ -30,7 +30,7 @@ export default function AveragePage({ params }: { params: Params }) {
     return (
       <>
         <PageHeader title={title} back={BACK} />
-        {data ? <p className="text-muted">The sensors of this card may have been removed.</p> : <Message error={error} loading />}
+        {data ? <p className={placeholder}>The sensors of this card may have been removed.</p> : <Message error={error} loading />}
       </>
     );
   }
@@ -66,7 +66,7 @@ export default function AveragePage({ params }: { params: Params }) {
             key={sensor.id}
             href={sensorPath(sensor.id, metric)}
             label={sensor.name}
-            detail={value.latest ? <MetricValue metric={metric} value={value.latest.value} unit={unit} size="small" /> : 'No data'}
+            detail={value.latest ? <MetricValue metric={metric} value={value.latest.value} unit={unit} size="small" /> : 'No Data'}
           />
         ))}
       </Section>

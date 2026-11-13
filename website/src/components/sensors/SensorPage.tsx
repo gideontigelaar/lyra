@@ -12,7 +12,7 @@ import { loadSensors } from '../../lib/sensors';
 import { isFresh, isOnline } from '../../lib/status';
 import { showNotice } from '../../lib/toast';
 import type { Card, Device, Option } from '../../lib/types';
-import { card as cardClass, inlineSelect, pressable, row } from '../../lib/ui';
+import { card as cardClass, inlineSelect, placeholder, pressable, row } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import MetricValue from '../MetricValue';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -53,7 +53,7 @@ export default function SensorPage({ params }: { params: Params }) {
     return (
       <>
         <PageHeader title="Sensor not found" back={home} />
-        <p className="text-muted">This sensor may have been removed.</p>
+        <p className={placeholder}>This sensor may have been removed.</p>
       </>
     );
   }
@@ -142,7 +142,9 @@ export default function SensorPage({ params }: { params: Params }) {
                     <span className={`max-w-full truncate text-subheadline font-semibold ${narrow ? 'max-sm:text-footnote max-sm:tracking-tight' : ''}`}>{style.label}</span>
                     {metric.latest && <span className={`ml-auto shrink-0 text-footnote text-muted ${narrow ? 'max-md:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
                   </span>
-                  <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} />
+                  <span className="@container w-full">
+                    <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} fit />
+                  </span>
                 </button>
               );
             })}
@@ -171,9 +173,9 @@ export default function SensorPage({ params }: { params: Params }) {
           </Section>
         </>
       ) : (
-        <p className="px-1 text-subheadline text-muted">Waiting for the first reading.</p>
+        <p className={placeholder}>Waiting for the first reading.</p>
       )}
-      <Fold title="Settings" hint="Recording, details, remove" defaultOpen={!shown || sensor.device === null}>
+      <Fold title="Settings" hint="Recording, details, backup" defaultOpen={!shown || sensor.device === null}>
         {metrics.length > 0 && (
           <Section title="Recording">
             {metrics.map((metric) => (
@@ -248,7 +250,7 @@ export default function SensorPage({ params }: { params: Params }) {
             <Row
               key={metric.name}
               label={metricStyle(metric.name).label}
-              detail={metric.latest ? `${formatNumber(metric.latest.value, metricStyle(metric.name).decimals)}${unitText(metric.unit)}` : 'No data'}
+              detail={metric.latest ? `${formatNumber(metric.latest.value, metricStyle(metric.name).decimals)}${unitText(metric.unit)}` : 'No Data'}
             />
           ))}
         </Section>

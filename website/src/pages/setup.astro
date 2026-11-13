@@ -2,7 +2,7 @@
 import KeyIcon from '@phosphor-icons/core/assets/fill/key-fill.svg';
 import Wordmark from '../components/Wordmark';
 import Layout from '../layouts/Layout.astro';
-import { card, input, label, primaryButton } from '../lib/ui';
+import { card, input, label, widePrimaryButton } from '../lib/ui';
 ---
 
 <Layout title="Set up">
@@ -15,7 +15,7 @@ import { card, input, label, primaryButton } from '../lib/ui';
       <input id="setup-code" name="code" class={input} autocomplete="one-time-code" spellcheck="false" required />
       <label for="passkey-name" class:list={[label, 'mt-4']}>Passkey name</label>
       <input id="passkey-name" name="name" class={input} maxlength="50" required />
-      <button type="submit" class:list={[primaryButton, 'mt-6 w-full py-3 text-body']}>
+      <button type="submit" class:list={[widePrimaryButton, 'mt-6']}>
         <KeyIcon class="size-5" aria-hidden="true" />
         Create passkey
       </button>

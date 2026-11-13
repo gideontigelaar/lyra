@@ -6,7 +6,7 @@ import { LOW_BATTERY, metricStyle } from '../../lib/metrics';
 import { type PeriodId, PERIODS, isPeriod, periods } from '../../lib/periods';
 import { averagePoints, fetchPoints, rangeOf } from '../../lib/readings';
 import type { Point, SensorMetric } from '../../lib/types';
-import { iconButton } from '../../lib/ui';
+import { iconButton, sectionTitle } from '../../lib/ui';
 import RangeChart from '../chart/RangeChart';
 import Message from '../ui/Message';
 import Segmented from '../ui/Segmented';
@@ -94,7 +94,7 @@ export default function MetricChart({ sensors, metric }: Props) {
       <Segmented label="Period" options={PERIODS} value={period} onChange={changePeriod} />
       <div className="mt-5 flex items-end justify-between gap-3" aria-live="polite">
         <div className="min-w-0">
-          <div className="text-footnote font-semibold tracking-wide text-muted uppercase">{point && point.min === point.max ? 'Reading' : 'Range'}</div>
+          <div className={sectionTitle}>{point && point.min === point.max ? 'Reading' : 'Range'}</div>
           <div className="tabular-nums">
             {value ? (
               <>

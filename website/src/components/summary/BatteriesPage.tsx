@@ -5,6 +5,7 @@ import { LOW_BATTERY, batteryLevel, hasBattery, lowBattery } from '../../lib/met
 import { sensorPath } from '../../lib/paths';
 import type { Params } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
+import { placeholder } from '../../lib/ui';
 import BatteryFill from '../BatteryFill';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
@@ -25,7 +26,7 @@ export default function BatteriesPage({ params }: { params: Params }) {
     return (
       <>
         <PageHeader title="Batteries" back={BACK} />
-        {data ? <p className="text-muted">The sensors of this card may have been removed.</p> : <Message error={error} loading />}
+        {data ? <p className={placeholder}>The sensors of this card may have been removed.</p> : <Message error={error} loading />}
       </>
     );
   }
@@ -45,12 +46,12 @@ export default function BatteriesPage({ params }: { params: Params }) {
                 <span className="block truncate">{sensor.name}</span>
                 <span className="flex items-center gap-1 text-footnote text-muted">
                   {low && (
-                    <span className="flex items-center gap-1 font-semibold" style={{ color: 'var(--status-warning)' }}>
+                    <span className="flex items-center gap-1 font-semibold text-warning">
                       <WarningCircleIcon weight="fill" className="size-3.5" aria-hidden="true" />
                       Low ·
                     </span>
                   )}
-                  {latest ? clockTime(latest.measured_at, now) : 'No data yet'}
+                  {latest ? clockTime(latest.measured_at, now) : 'No Data'}
                 </span>
               </>
             }

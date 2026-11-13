@@ -62,7 +62,7 @@ export default function Notices(props: Props) {
     <div className={`${group} mb-6 divide-y divide-line`}>
       {list.map(({ key, text, detail, href }) => (
         <a key={key} href={href} className={`${row} ${pressable}`}>
-          <WarningCircleIcon weight="fill" className="size-5 shrink-0" style={{ color: 'var(--status-warning)' }} aria-hidden="true" />
+          <WarningCircleIcon weight="fill" className="size-5 shrink-0 text-warning" aria-hidden="true" />
           <span className="min-w-0 flex-1">
             <span className="block text-body">{text}</span>
             <span className="block text-footnote text-muted">{detail}</span>

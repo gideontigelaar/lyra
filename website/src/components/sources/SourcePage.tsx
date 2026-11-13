@@ -7,7 +7,7 @@ import { type Params, navigate } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import { showNotice } from '../../lib/toast';
 import type { Device } from '../../lib/types';
-import { group, pressable, primaryButton, row } from '../../lib/ui';
+import { group, pressable, row, widePrimaryButton } from '../../lib/ui';
 import { displayUnit } from '../../lib/units';
 import { sensorSummary } from '../sensors/SensorList';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -125,7 +125,7 @@ export default function SourcePage({ params }: { params: Params }) {
             );
           })}
         </div>
-        <button type="button" className={`${primaryButton} mt-6 w-full`} disabled={busy} onClick={() => (moves.length ? setMoving(true) : saveChoice())}>
+        <button type="button" className={`${widePrimaryButton} mt-6`} disabled={busy} onClick={() => (moves.length ? setMoving(true) : saveChoice())}>
           Save
         </button>
       </Dialog>

@@ -49,7 +49,7 @@ export function CopyMark({ copied }: { copied: boolean }) {
   return (
     <span className="grid size-4 shrink-0" aria-hidden="true">
       <CopyIcon weight="bold" className={`${LAYER} size-4 ${copied ? 'scale-50 opacity-0' : ''}`} />
-      <CheckIcon weight="bold" className={`${LAYER} size-4 text-(--status-good) ${copied ? '' : 'scale-50 opacity-0'}`} />
+      <CheckIcon weight="bold" className={`${LAYER} size-4 text-good ${copied ? '' : 'scale-50 opacity-0'}`} />
     </span>
   );
 }

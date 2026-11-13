@@ -8,7 +8,7 @@ import { failure, useLoad } from '../../lib/load';
 import { fetchPoints } from '../../lib/readings';
 import { loadSensors } from '../../lib/sensors';
 import type { Card, Device } from '../../lib/types';
-import { iconButton, textButton } from '../../lib/ui';
+import { iconButton, placeholder, textButton } from '../../lib/ui';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
 import CardEditor from './CardEditor';
@@ -278,7 +278,7 @@ export default function Summary() {
       {data && (
         <>
           {!history && <Notices sensors={sensors} devices={devices} now={now} />}
-          {cards.length === 0 && !history && <p className="px-1 text-subheadline text-muted">Nothing pinned yet. Choose Edit to add sensors and values.</p>}
+          {cards.length === 0 && !history && <p className={placeholder}>Nothing pinned yet. Choose Edit to add sensors and values.</p>}
           <div className="@container">
             <DndContext
               sensors={dragSensors}

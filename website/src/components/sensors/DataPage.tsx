@@ -9,7 +9,7 @@ import { fetchPoints } from '../../lib/readings';
 import type { Params } from '../../lib/router';
 import { loadSensors } from '../../lib/sensors';
 import type { Point } from '../../lib/types';
-import { dangerButton, group, pressable, row, secondaryButton, textButton } from '../../lib/ui';
+import { dangerButton, dangerTextButton, group, placeholder, pressable, row, textButton, wideSecondaryButton } from '../../lib/ui';
 import { showNotice } from '../../lib/toast';
 import { startOfDay, wall, zoned } from '../../lib/zone';
 import ConfirmDialog from '../ui/ConfirmDialog';
@@ -131,7 +131,7 @@ export default function DataPage({ params }: { params: Params }) {
         actions={
           editing ? (
             <>
-              <button type="button" className={`${textButton} text-danger`} onClick={() => setConfirming('all')}>
+              <button type="button" className={dangerTextButton} onClick={() => setConfirming('all')}>
                 Delete All
               </button>
               <button type="button" className={textButton} onClick={() => (setEditing(false), setSelected(new Set()))}>
@@ -170,10 +170,10 @@ export default function DataPage({ params }: { params: Params }) {
           )}
         </div>
       )}
-      {!loading && !items.length && <p className="px-1 text-subheadline text-muted">No data recorded.</p>}
+      {!loading && !items.length && <p className={placeholder}>No data recorded.</p>}
       {loading && <Message loading />}
       {!exhausted && !loading && (
-        <button type="button" className={`${secondaryButton} mt-4 w-full`} onClick={() => setWindowEnd(startOfDay(windowEnd, -WINDOW_DAYS))}>
+        <button type="button" className={`${wideSecondaryButton} mt-4`} onClick={() => setWindowEnd(startOfDay(windowEnd, -WINDOW_DAYS))}>
           Show Earlier
         </button>
       )}

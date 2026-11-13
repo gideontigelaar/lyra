@@ -7,7 +7,7 @@ import { passkeyError, passkeysSupported, registerPasskey, signOut } from '../..
 import { endDemo, forgetSignIn } from '../../lib/session';
 import { type UserSettings, loadSettings, saveSettings } from '../../lib/settings';
 import type { Passkey, Session } from '../../lib/types';
-import { inlineSelect, textButton } from '../../lib/ui';
+import { inlineSelect, rowDangerButton } from '../../lib/ui';
 import { showNotice } from '../../lib/toast';
 import { TEMPERATURE_UNITS } from '../../lib/units';
 import { browserZone } from '../../lib/zone';
@@ -191,7 +191,7 @@ export default function Settings() {
               }
               trailing={
                 <span title={data[0].passkeys.length === 1 ? "The last passkey can't be removed" : undefined}>
-                  <button type="button" className={`${textButton} text-subheadline text-danger`} disabled={data[0].passkeys.length === 1} onClick={() => setRemoving(passkey)}>
+                  <button type="button" className={rowDangerButton} disabled={data[0].passkeys.length === 1} onClick={() => setRemoving(passkey)}>
                     Remove
                   </button>
                 </span>
@@ -202,7 +202,7 @@ export default function Settings() {
         </Section>
       )}
       {data && (
-        <Section title="Sessions" footer="Signing out a session ends it on that device straight away.">
+        <Section title="Sessions">
           {data[2].sessions.map((session) => (
             <Row
               key={session.id}
@@ -216,7 +216,7 @@ export default function Settings() {
               }
               trailing={
                 !session.current && (
-                  <button type="button" aria-label={`Sign out ${browserName(session.user_agent)}`} className={`${textButton} text-subheadline text-danger`} onClick={() => setEnding(session)}>
+                  <button type="button" aria-label={`Sign out ${browserName(session.user_agent)}`} className={rowDangerButton} onClick={() => setEnding(session)}>
                     Sign Out
                   </button>
                 )

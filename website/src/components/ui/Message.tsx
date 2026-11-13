@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { showError } from '../../lib/toast';
+import { placeholder } from '../../lib/ui';
 
 interface Props {
   error?: string | null;
@@ -18,9 +19,5 @@ export default function Message({ error, loading }: Props) {
     return null;
   }
 
-  return error ? (
-    <p className="py-2 text-subheadline text-muted">Couldn't load this page.</p>
-  ) : (
-    <p className="py-2 text-subheadline text-muted transition-opacity delay-300 duration-300 starting:opacity-0">Loading…</p>
-  );
+  return error ? <p className={`${placeholder} py-2`}>Couldn't load this page.</p> : <p className={`${placeholder} py-2 transition-opacity delay-300 duration-300 starting:opacity-0`}>Loading…</p>;
 }

@@ -8,7 +8,7 @@ import { sensorPath } from '../../lib/paths';
 import { loadSensors } from '../../lib/sensors';
 import { isFresh } from '../../lib/status';
 import type { Device, Option, Sensor } from '../../lib/types';
-import { iconButton } from '../../lib/ui';
+import { iconButton, placeholder } from '../../lib/ui';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
@@ -83,7 +83,7 @@ export default function SensorList() {
               })}
             </Section>
           ) : (
-            <p className="px-1 text-subheadline text-muted">No sensors yet. Add one with its MAC address.</p>
+            <p className={placeholder}>No sensors yet. Add one with its MAC address.</p>
           )}
           <AddSensor open={adding} decoders={data[2].decoders} devices={data[1].devices} onClose={() => setAdding(false)} />
         </>

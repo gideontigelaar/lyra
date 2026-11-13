@@ -1,13 +1,8 @@
-import { metricStyle } from '../lib/metrics';
-
 // A battery level as a bar that's filled that far, in the warning colour when it's low.
 export default function BatteryFill({ level, low, className }: { level: number; low: boolean; className: string }) {
   return (
     <span className={`overflow-hidden rounded-full bg-fill ${className}`} aria-hidden="true">
-      <span
-        className="block h-full rounded-full transition-[width] duration-500"
-        style={{ width: `${Math.min(Math.max(level, 0), 100)}%`, background: low ? 'var(--status-warning)' : metricStyle('battery').color }}
-      />
+      <span className={`block h-full rounded-full transition-[width] duration-500 ${low ? 'bg-warning' : 'bg-(--metric-battery)'}`} style={{ width: `${Math.min(Math.max(level, 0), 100)}%` }} />
     </span>
   );
 }
@@ -19,7 +14,7 @@ export function BatteryShape({ level, low, className }: { level: number; low: bo
   return (
     <svg viewBox="0 0 50 24" className={`w-auto shrink-0 ${className}`} aria-hidden="true">
       <rect x={1} y={1} width={44} height={22} rx={6} fill="none" strokeWidth={2} className="stroke-line" />
-      <rect x={4} y={4} width={width} height={16} rx={3.5} className="transition-[width] duration-500" style={{ width, fill: low ? 'var(--status-warning)' : metricStyle('battery').color }} />
+      <rect x={4} y={4} width={width} height={16} rx={3.5} className={`transition-[width] duration-500 ${low ? 'fill-warning' : 'fill-(--metric-battery)'}`} style={{ width }} />
       <rect x={47} y={8} width={3} height={8} rx={1.5} className="fill-line" />
     </svg>
   );

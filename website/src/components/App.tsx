@@ -5,7 +5,7 @@ import { SUMMARY } from '../lib/paths';
 import { type Params, type Trail, navigate, pageState, useLocation } from '../lib/router';
 import { endDemo, isDemo } from '../lib/session';
 import { loadSettings } from '../lib/settings';
-import { appear, iconButton } from '../lib/ui';
+import { appear, iconButton, placeholder } from '../lib/ui';
 import DataPage from './sensors/DataPage';
 import SensorList from './sensors/SensorList';
 import SensorPage from './sensors/SensorPage';
@@ -70,7 +70,7 @@ function NotFound() {
   return (
     <>
       <PageHeader title="Page not found" />
-      <p className="text-body text-muted">This page doesn't exist.</p>
+      <p className={placeholder}>This page doesn't exist.</p>
     </>
   );
 }
@@ -190,7 +190,7 @@ export default function App() {
       <div className="sticky top-0 z-20">
         {isDemo() && (
           <aside aria-label="Demo" className="bg-accent px-4 py-1.5 text-center text-footnote font-semibold text-white dark:text-navy-950">
-            Demo with sample data. Changes reset upon reload.{' '}
+            Demo with sample data. Changes reset when you reload.{' '}
             <a href="/login/" onClick={endDemo} className="underline underline-offset-2">
               Exit demo
             </a>

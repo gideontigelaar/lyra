@@ -1,14 +1,24 @@
+import type { Icon } from '@phosphor-icons/react';
 import { metricStyle } from '../lib/metrics';
+
+interface ChipProps {
+  icon: Icon;
+  color: string;
+  // Without a label the chip only decorates text that already says what it is.
+  label?: string;
+  small?: boolean;
+}
+
+// An icon on a tint of its own colour.
+export function Chip({ icon: Icon, color, label, small = false }: ChipProps) {
+  return (
+    <span className={`flex shrink-0 items-center justify-center rounded-lg ${small ? 'size-6' : 'size-8'}`} style={{ color, backgroundColor: `color-mix(in oklch, ${color} 15%, transparent)` }}>
+      <Icon weight="fill" className={small ? 'size-3.5' : 'size-4.5'} aria-label={label} aria-hidden={label ? undefined : true} />
+    </span>
+  );
+}
 
 export default function MetricChip({ metric, small = false }: { metric: string; small?: boolean }) {
   const style = metricStyle(metric);
-
-  return (
-    <span
-      className={`flex shrink-0 items-center justify-center rounded-lg ${small ? 'size-6' : 'size-8'}`}
-      style={{ color: style.color, backgroundColor: `color-mix(in oklch, ${style.color} 15%, transparent)` }}
-    >
-      <style.icon weight="fill" className={small ? 'size-3.5' : 'size-4.5'} aria-label={style.label} />
-    </span>
-  );
+  return <Chip icon={style.icon} color={style.color} label={style.label} small={small} />;
 }

@@ -3,7 +3,7 @@ import { type ReactNode, useState } from 'react';
 import { MAX_PER_CARD, canCombine, cardKey, fitValues, valueLimit } from '../../lib/cards';
 import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
 import type { Card, Sensor } from '../../lib/types';
-import { group, primaryButton, row, sectionTitle } from '../../lib/ui';
+import { group, placeholder, row, sectionTitle, widePrimaryButton } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import { Row } from '../ui/List';
 import Segmented from '../ui/Segmented';
@@ -42,7 +42,7 @@ interface FormProps {
 }
 
 interface GroupProps<T> extends FormProps {
-  intro: string;
+  intro?: string;
   what: 'sensors' | 'values';
   options: { key: T; label: string; icon?: ReactNode }[];
   min?: number;
@@ -61,7 +61,7 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
 
   return (
     <>
-      <p className="mb-4 text-subheadline text-muted">{intro}</p>
+      {intro && <p className="mb-4 text-subheadline text-muted">{intro}</p>}
       {before}
       <h3 className={`${sectionTitle} mb-2 px-1`}>{what === 'sensors' ? 'Sensors' : 'Values'}</h3>
       <div className={`${group} divide-y divide-line`}>
@@ -78,7 +78,7 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
       </div>
       <p className="mt-2 px-4 text-footnote text-muted">{note ?? `Up to ${max} ${what} per card.`}</p>
       {after}
-      <button type="button" className={`${primaryButton} mt-5 w-full py-3 text-body`} disabled={picked.length < min || exists} onClick={() => onSubmit(card)}>
+      <button type="button" className={`${widePrimaryButton} mt-6`} disabled={picked.length < min || exists} onClick={() => onSubmit(card)}>
         {exists
           ? 'Already on Summary'
           : picked.length < min
@@ -110,13 +110,13 @@ export function ValuesForm({ sensor, ...props }: FormProps & { sensor: Sensor })
   const card: Card = picked.length === 1 ? { type: 'metric', size, sensor: sensor.id, metric: picked[0], graph } : { type: 'sensor', size, sensor: sensor.id, metric: null, metrics: picked, graph };
 
   if (!options.length) {
-    return <p className="px-1 text-subheadline text-muted">No values yet. They show up here after the first reading.</p>;
+    return <p className={placeholder}>No values yet. They show up here after the first reading.</p>;
   }
 
   return (
     <Group
       {...props}
-      intro={edited ? 'Pick the values this card shows.' : 'Pick one value for a small card, or more to show them together.'}
+      intro={edited ? undefined : 'Pick one value for a small card, or more to show them together.'}
       what="values"
       options={options.map((metric) => ({ key: metric.name, label: metricStyle(metric.name).label, icon: <MetricChip metric={metric.name} small /> }))}
       min={1}

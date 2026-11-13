@@ -10,6 +10,8 @@
   --color-fill: var(--fill);
   --color-accent: var(--accent);
   --color-danger: var(--danger);
+  --color-good: var(--status-good);
+  --color-warning: var(--status-warning);
 }
 
 /* Text styles named after Apple's, in rem so they follow the browser's font size. */

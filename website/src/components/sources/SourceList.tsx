@@ -6,7 +6,7 @@ import { failure, useLoad } from '../../lib/load';
 import { sourcePath } from '../../lib/paths';
 import { isOnline } from '../../lib/status';
 import type { Device } from '../../lib/types';
-import { iconButton } from '../../lib/ui';
+import { iconButton, placeholder } from '../../lib/ui';
 import { Row, Section } from '../ui/List';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
@@ -68,7 +68,7 @@ export default function SourceList() {
             ))}
           </Section>
         ) : (
-          <p className="px-1 text-subheadline text-muted">No sources yet. Add one to get its key.</p>
+          <p className={placeholder}>No sources yet. Add one to get its key.</p>
         ))}
       <TextDialog open={adding} title="Add Source" label="Name" value="" onClose={() => setAdding(false)} onSave={add} />
       <KeyDialog value={key} onClose={() => setKey(null)} />

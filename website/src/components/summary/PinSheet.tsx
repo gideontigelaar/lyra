@@ -4,8 +4,8 @@ import { MAX_PER_CARD, canCombine } from '../../lib/cards';
 import { formatNumber, unitText } from '../../lib/format';
 import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
 import type { Card, Sensor } from '../../lib/types';
-import { appear, group, pressable, secondaryButton, sectionTitle } from '../../lib/ui';
-import MetricChip from '../MetricChip';
+import { appear, group, pressable, sectionTitle, wideSecondaryButton } from '../../lib/ui';
+import { Chip } from '../MetricChip';
 import Dialog from '../ui/Dialog';
 import { AverageForm, BatteriesForm, ValuesForm } from './CardForms';
 
@@ -26,7 +26,7 @@ const heading = `${sectionTitle} mb-2 px-1`;
 const summaryOf = (sensor: Sensor) =>
   mainMetrics(sensor.metrics.filter((metric) => metric.latest))
     .map((metric) => `${formatNumber(metric.latest!.value, metricStyle(metric.name).decimals)}${unitText(metric.unit)}`)
-    .join(' · ') || 'No data yet';
+    .join(' · ') || 'No Data';
 
 function Back({ label, onClick }: { label: string; onClick: () => void }) {
   return (
@@ -62,7 +62,7 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
     combinable && (
       <button key="average" type="button" className={tile} onClick={() => setView({ kind: 'average' })}>
         <span className="flex items-center gap-2 text-body font-semibold">
-          <ArrowsMergeIcon weight="bold" className="size-5 text-accent" aria-hidden="true" />
+          <Chip icon={ArrowsMergeIcon} color="var(--accent)" small />
           Average
         </span>
         <span className="text-footnote text-muted">One value over 2 to {MAX_PER_CARD.combined} sensors</span>
@@ -71,7 +71,7 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
     batteries && (
       <button key="batteries" type="button" className={tile} onClick={() => setView({ kind: 'batteries' })}>
         <span className="flex items-center gap-2 text-body font-semibold">
-          <MetricChip metric="battery" small />
+          <Chip icon={metricStyle('battery').icon} color={metricStyle('battery').color} small />
           Batteries
         </span>
         <span className="text-footnote text-muted">Levels of up to {MAX_PER_CARD.batteries} sensors</span>
@@ -110,7 +110,7 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
             </>
           ))}
         {view.kind === 'home' && (
-          <button type="button" className={`${secondaryButton} mt-5 w-full py-3 text-body`} onClick={close}>
+          <button type="button" className={`${wideSecondaryButton} mt-6`} onClick={close}>
             Cancel
           </button>
         )}

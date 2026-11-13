@@ -81,13 +81,13 @@ export const cardName = (card: Card, sensors: Sensor[]) => {
 // One line per hour: the average of the sensors that have a value for that hour.
 const averageSpark = (sparks: (Spark | undefined)[]): Spark | undefined => {
   const present = sparks.filter((spark) => spark !== undefined);
-
-  if (!present.length) {
-    return undefined;
-  }
-
   const hours = new Map<number, number[]>();
   present.forEach((spark) => spark.points.forEach((point) => hours.set(point.time, [...(hours.get(point.time) ?? []), point.avg])));
+
+  // Without points there's no graph, so the value keeps its place at the bottom.
+  if (!hours.size) {
+    return undefined;
+  }
 
   const points = [...hours]
     .sort(([a], [b]) => a - b)
@@ -141,11 +141,11 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
         </div>
       </div>
       {spark ? <Sparkline {...spark} color={style.color} className="mt-3 min-h-8 w-full flex-1" /> : <div className="flex-1" />}
-      <div className="mt-2 flex items-baseline gap-3">
+      <div className="@container mt-2 flex items-baseline gap-3">
         {/* Without a graph the value takes its room. */}
-        <MetricValue metric={name} value={value} unit={unit} size={spark ? (large ? 'huge' : 'large') : large ? 'giant' : 'huge'} />
+        <MetricValue metric={name} value={value} unit={unit} size={spark ? (large ? 'huge' : 'large') : large ? 'giant' : 'huge'} fit />
         {combined && large && numbers.length > 1 && (
-          <span className="truncate text-footnote text-muted">
+          <span className="min-w-0 truncate text-footnote text-muted">
             {formatNumber(Math.min(...numbers), style.decimals)}–{formatNumber(Math.max(...numbers), style.decimals)}
             {unitText(unit)}
           </span>
@@ -190,7 +190,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
     return (
       <>
         <Header title={sensor.name} time={null} large={large} />
-        <div className="mt-auto text-footnote text-muted">Waiting for data</div>
+        <div className="mt-auto text-footnote text-muted">Waiting for the first reading</div>
       </>
     );
   }
@@ -208,7 +208,9 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
               <div key={metric.name} className="flex min-h-0 flex-1 flex-col justify-end">
                 <div className="flex items-center gap-2">
                   <MetricChip metric={metric.name} small />
-                  <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={values.length === 1 ? 'large' : 'medium'} />
+                  <span className="@container min-w-0 flex-1">
+                    <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={values.length === 1 ? 'large' : 'medium'} fit />
+                  </span>
                 </div>
                 {spark && <Sparkline {...spark} color={style.color} className="mt-1 min-h-3 w-full flex-1" />}
               </div>
@@ -236,7 +238,9 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
                     <span className="hidden @[7.5rem]:block">
                       <MetricChip metric={metric.name} small />
                     </span>
-                    <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} />
+                    <span className="@container min-w-0 flex-1">
+                      <MetricValue metric={metric.name} value={metric.latest!.value} unit={metric.unit} size={size} fit />
+                    </span>
                   </div>
                 </div>
               );
@@ -269,7 +273,7 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
         <MetricValue metric="battery" value={level} unit="%" size={large ? 'huge' : 'large'} />
         {level !== null && <BatteryShape level={level} low={low} className={large ? 'h-9' : 'h-6'} />}
         {low && (
-          <span className="flex min-w-0 items-center gap-1 text-footnote font-semibold" style={{ color: 'var(--status-warning)' }}>
+          <span className="flex min-w-0 items-center gap-1 text-footnote font-semibold text-warning">
             <WarningCircleIcon weight="fill" className="size-4 shrink-0" aria-hidden="true" />
             <span className={`truncate ${large ? '' : 'sr-only'}`}>Low</span>
           </span>
@@ -294,8 +298,8 @@ function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteri
 
   return (
     <>
-      <div className="flex items-center gap-2.5">
-        <MetricChip metric="battery" />
+      <div className={`flex items-center ${large ? 'gap-2.5' : 'gap-2'}`}>
+        <MetricChip metric="battery" small={!large} />
         <span className="min-w-0 flex-1 truncate text-subheadline font-semibold">Batteries</span>
         {hidden > 0 && <span className="shrink-0 text-footnote text-muted">+{hidden}</span>}
       </div>
@@ -303,7 +307,7 @@ function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteri
         {list.map(({ sensor, level, low }) => (
           <li key={sensor.id} className="flex min-w-0 items-center gap-2 text-subheadline">
             <span className="min-w-0 flex-1 truncate">{sensor.name}</span>
-            {low && <WarningCircleIcon weight="fill" className="size-4 shrink-0" style={{ color: 'var(--status-warning)' }} aria-label="Low" />}
+            {low && <WarningCircleIcon weight="fill" className="size-4 shrink-0 text-warning" aria-label="Low" />}
             {level !== null && <BatteryFill level={level} low={low} className={`h-1.5 w-16 shrink-0 ${bars}`} />}
             <span className="w-10 shrink-0 text-right font-semibold tabular-nums">{level === null ? '–' : `${Math.round(level)}%`}</span>
           </li>
