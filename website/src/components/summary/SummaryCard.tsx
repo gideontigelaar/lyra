@@ -5,9 +5,9 @@ import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
 import { clockTime, formatNumber, timeAgo, unitText } from '../../lib/format';
 import { batteryLevel, hasBattery, lowBattery, metricStyle } from '../../lib/metrics';
 import type { Spot } from '../../lib/grid';
-import { isOnline } from '../../lib/status';
+import { isFresh, isOnline } from '../../lib/status';
 import { dbm, duration, kilobytes, signal } from '../../lib/telemetry';
-import type { Card, Device, Point, Sensor } from '../../lib/types';
+import type { Card, Device, Point, Sensor, SensorMetric } from '../../lib/types';
 import { card as cardClass, pressable } from '../../lib/ui';
 import BatteryFill, { BatteryShape } from '../BatteryFill';
 import MetricChip, { Chip } from '../MetricChip';
@@ -113,14 +113,33 @@ const averageSpark = (sparks: (Spark | undefined)[]): Spark | undefined => {
   return { points, start: present[0].start, end: present[0].end };
 };
 
-function Header({ title, subtitle, time, large }: { title: string; subtitle?: ReactNode; time: string | null; large: boolean }) {
+type Time = { text: string; stale: boolean } | null;
+
+// When a card's values are from: their latest reading, or once one is overdue, the oldest of them.
+const readingTime = (metrics: SensorMetric[], now: number): Time => {
+  const times = metrics.flatMap((metric) => (metric.latest ? [metric.latest.measured_at] : [])).sort();
+  const stale = metrics.some((metric) => metric.latest !== null && !isFresh(metric, now));
+  const time = stale ? times[0] : times.at(-1);
+  return time ? { text: clockTime(time, now), stale } : null;
+};
+
+// A large card shows when its values are from beside its title. A small one only shows an overdue time, under its title, so the title keeps its room.
+function Header({ title, subtitle, time, large }: { title: string; subtitle?: ReactNode; time: Time; large: boolean }) {
+  const overdue = !large && time?.stale && <span className="font-semibold text-warning">{time.text}</span>;
+
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
         <div className="truncate text-subheadline font-semibold">{title}</div>
-        {subtitle && <div className="truncate text-footnote text-muted">{subtitle}</div>}
+        {(subtitle || overdue) && (
+          <div className="truncate text-footnote text-muted">
+            {subtitle}
+            {subtitle && overdue && ' · '}
+            {overdue}
+          </div>
+        )}
       </div>
-      {time && large && <span className="shrink-0 text-footnote text-muted">{time}</span>}
+      {time && large && <span className={`shrink-0 text-footnote ${time.stale ? 'font-semibold text-warning' : 'text-muted'}`}>{time.text}</span>}
     </div>
   );
 }
@@ -133,10 +152,7 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
   const readings = values.flatMap(({ metric }) => (metric.latest ? [metric.latest] : []));
   const numbers = readings.map((reading) => reading.value);
   const value = numbers.length ? numbers.reduce((sum, item) => sum + item, 0) / numbers.length : null;
-  const newest = readings
-    .map((reading) => reading.measured_at)
-    .sort()
-    .at(-1);
+  const metrics = values.map(({ metric }) => metric);
   const spark = 'graph' in card && card.graph ? averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)])) : undefined;
   const combined = card.type === 'combined';
   const unit = values[0]?.metric.unit ?? '';
@@ -149,7 +165,7 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
           <Header
             title={combined ? `Average ${style.label.toLowerCase()}` : style.label}
             subtitle={combined ? values.map(({ sensor }) => sensor.name).join(', ') : sensors.length > 1 ? values[0]?.sensor.name : undefined}
-            time={newest ? clockTime(newest, now) : null}
+            time={readingTime(metrics, now)}
             large={large}
           />
         </div>
@@ -181,10 +197,8 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   const values = cardValues(card, sensors);
   const graphs = card.type === 'sensor' && card.graph;
   const rows = rowsOf(values, large);
-  const newest = values
-    .map(({ metric }) => metric.latest!.measured_at)
-    .sort()
-    .at(-1);
+  const metrics = values.map(({ metric }) => metric);
+  const time = readingTime(metrics, now);
   // Without graphs the values take their room.
   const size = large
     ? graphs
@@ -213,7 +227,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   if (!large && graphs) {
     return (
       <>
-        <Header title={sensor.name} time={null} large={false} />
+        <Header title={sensor.name} time={time} large={false} />
         <div className="mt-2 flex min-h-0 flex-1 flex-col gap-2">
           {values.map(({ metric }) => {
             const style = metricStyle(metric.name);
@@ -238,7 +252,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   // A value's graph sits above it. Its chip only shows when the value has 7.5rem, and two rows only have room for graphs on wider, so taller, cards.
   return (
     <>
-      <Header title={sensor.name} time={newest ? clockTime(newest, now) : null} large={large} />
+      <Header title={sensor.name} time={time} large={large} />
       <div className={`mt-3 flex min-h-0 flex-1 flex-col ${large ? 'gap-3' : 'gap-2'}`}>
         {rows.map((row, i) => (
           <div key={i} className="flex min-h-0 flex-1 gap-3">
@@ -272,14 +286,14 @@ const BATTERY_ROWS = 3;
 function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; now: number }) {
   const level = batteryLevel(sensor);
   const low = lowBattery(sensor) !== null;
-  const latest = sensor.metrics.find((metric) => metric.name === 'battery')?.latest;
+  const battery = sensor.metrics.find((metric) => metric.name === 'battery');
 
   return (
     <>
       <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
         <MetricChip metric="battery" small={!large} />
         <div className="min-w-0 flex-1">
-          <Header title="Battery" subtitle={sensor.name} time={latest ? clockTime(latest.measured_at, now) : null} large={large} />
+          <Header title="Battery" subtitle={sensor.name} time={battery ? readingTime([battery], now) : null} large={large} />
         </div>
       </div>
       {/* The level, with a battery of one size next to it, filled as far as it's charged. */}
@@ -368,7 +382,7 @@ function SourceBody({ device, large, now, temperature }: { device: Device; large
       <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
         <Chip icon={BroadcastIcon} color="var(--accent)" label="Source" small={!large} />
         <div className="min-w-0 flex-1">
-          <Header title={device.name} subtitle={status} time={device.telemetry_at ? clockTime(device.telemetry_at, now) : null} large={large} />
+          <Header title={device.name} subtitle={status} time={device.telemetry_at ? { text: clockTime(device.telemetry_at, now), stale: false } : null} large={large} />
         </div>
       </div>
       {!stats.length ? (

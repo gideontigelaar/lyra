@@ -20,29 +20,29 @@ export const sensorSummary = (sensor: Sensor) =>
     .map((metric) => formatNumber(metric.latest!.value, metricStyle(metric.name).decimals) + unitText(metric.unit).trim())
     .join(' · ');
 
+// A problem with the sensor, in the warning colour, or else its source when there's more than one.
 const sensorNote = (sensor: Sensor, devices: Device[], now: number) => {
   const recorded = sensor.metrics.filter((metric) => metric.active && metric.latest);
   const battery = lowBattery(sensor);
 
   if (sensor.device === null) {
-    return 'No source';
+    return { text: 'No source', warning: true };
   }
 
   if (recorded.length && !recorded.some((metric) => isFresh(metric, now))) {
-    return `No data since ${clockTime(
-      recorded
-        .map((metric) => metric.latest!.measured_at)
-        .sort()
-        .at(-1)!,
-      now,
-    )}`;
+    const latest = recorded
+      .map((metric) => metric.latest!.measured_at)
+      .sort()
+      .at(-1)!;
+    return { text: `No data since ${clockTime(latest, now)}`, warning: true };
   }
 
   if (battery !== null) {
-    return `Battery ${battery}%`;
+    return { text: `Battery ${battery}%`, warning: true };
   }
 
-  return devices.length > 1 ? devices.find((device) => device.id === sensor.device)?.name : undefined;
+  const source = devices.length > 1 ? devices.find((device) => device.id === sensor.device)?.name : undefined;
+  return source ? { text: source, warning: false } : null;
 };
 
 export default function SensorList() {
@@ -74,7 +74,7 @@ export default function SensorList() {
                     label={
                       <>
                         <span className="block truncate">{sensor.name}</span>
-                        {note && <span className="block truncate text-footnote text-muted">{note}</span>}
+                        {note && <span className={`block truncate text-footnote ${note.warning ? 'font-semibold text-warning' : 'text-muted'}`}>{note.text}</span>}
                       </>
                     }
                     detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>}
