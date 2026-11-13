@@ -30,6 +30,17 @@ function bthome_length(int $id): ?int
 
 return [
     'label' => 'BTHome',
+    // Each value it reads, with its unit and how often it's recorded until a sensor's settings say otherwise.
+    'metrics' => [
+        'temperature' => ['°C', 900],
+        'humidity' => ['%', 900],
+        'battery' => ['%', 3600],
+        'voltage' => ['V', 3600],
+        'pressure' => ['hPa', 900],
+        'illuminance' => ['lx', 900],
+        'dew_point' => ['°C', 900],
+        'co2' => ['ppm', 900],
+    ],
     'decode' => static function (array $advert): array {
         $data = $advert['service_data'][BTHOME_UUID] ?? '';
 

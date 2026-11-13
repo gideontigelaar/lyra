@@ -134,15 +134,9 @@ Takes the sensor broadcasts the boards relay, decodes them, stores the readings 
        PRIMARY KEY (code_hash),
        FOREIGN KEY (user_id) REFERENCES users (user_id)
    );
-
-   INSERT INTO metrics (name, unit, default_interval) VALUES
-       ('temperature', '°C', 900),
-       ('humidity', '%', 900),
-       ('battery', '%', 3600),
-       ('voltage', 'V', 3600);
    ```
 
-   These are the values the pvvx firmware sends. `bthome` also reads `pressure` (hPa), `illuminance` (lx), `dew_point` (°C) and `co2` (ppm): add a row once a sensor sends one of those.
+   `metrics` fills itself: a value is added the first time a sensor sends it, with the unit and interval its decoder declares.
 
 ## Credentials
 Copy the template to the server, from the root of the repository:
@@ -259,14 +253,14 @@ Response:
 ## Good to know
 - Every response carries the security headers from `send_security_headers()` in `lib/http.php`.
 - Each file in `modules/` has its handlers and returns its routes. A new module goes in `MODULES` in `index.php`, shared helpers in `lib/`.
-- Broadcasts are decoded here, not on the boards. A new sensor type is a file in `plugins/decoders/` plus its name in `DECODERS` in `lib/pipeline.php`, a new destination a file in `plugins/sinks/` plus its name in `SINKS`. Neither needs a firmware update.
+- Broadcasts are decoded here, not on the boards. A new sensor type is a file in `plugins/decoders/` plus its name in `DECODERS` in `lib/pipeline.php`, a new destination a file in `plugins/sinks/` plus its name in `SINKS`. Neither needs a firmware update or a database change.
 - `bthome` reads unencrypted BTHome v2, like the pvvx firmware sends. `lyra` stores the readings here.
 - Sources and sensors are managed on the website. A new source's key is shown once, for `firmware/include/credentials.h`, and only its hash is stored. A new sensor reaches its source within 5 minutes, and each value is recorded at its metric's `default_interval` until you change it.
-- A source only relays its own sensors. Values missing from the `metrics` table are ignored, so a new kind of value only needs a row there.
+- A source only relays its own sensors. A decoder declares each value it reads with its unit and default interval, see `bthome`. A value that isn't in `metrics` yet is added the first time a sensor sends it, values a decoder doesn't declare are ignored.
 - A value is stored once its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so late broadcasts still get the right time.
 - Only a source's latest telemetry is kept, and unknown fields are ignored, so newer firmware keeps working. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, and `pending` and `dropped` count broadcasts waiting in or dropped from the queue.
 - `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, which defaults to UTC. `before` and `after` are the bucket of the nearest reading before and after the range, however far away, or `null`, so a chart's line can carry on to its edges and across gaps.
-- A backup has the columns `time`, `metric`, `value` and `unit`, in the units readings are stored in, with a byte order mark so Excel reads it as UTF-8. Importing skips readings that are stored already, or that are within a minute of a stored reading of the same value, so a backup that overlaps what's there only adds what's missing. A value the sensor didn't have yet is added to it, and readings with an unknown value, another unit or a time in the future count as invalid. A request takes up to 5000 readings, the website sends a backup in parts.
+- A backup has the columns `time`, `metric`, `value` and `unit`, in the units readings are stored in, with a byte order mark so Excel reads it as UTF-8. Importing skips readings that are stored already, or that are within a minute of a stored reading of the same value, so a backup that overlaps what's there only adds what's missing. A value the sensor didn't have yet is added to it, also one that's new to `metrics` if the sensor's decoder declares it. Readings with an unknown value, another unit or a time in the future count as invalid. A request takes up to 5000 readings, the website sends a backup in parts.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
 - Temperatures are stored in °C, `temperature_unit` only changes what the website shows.
 - Passkeys must use one of `PASSKEY_ALGORITHMS` in `lib/webauthn.php`. The last one can't be removed, and removing one ends its sessions.

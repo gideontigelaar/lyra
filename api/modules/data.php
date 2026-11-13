@@ -198,12 +198,12 @@ function delete_readings(): never
     respond(200, ['deleted' => $deleted]);
 }
 
-function read_sensor(PDO $db, mixed $sensor): int
+function read_sensor(PDO $db, mixed $sensor): array
 {
-    $stmt = $db->prepare('SELECT sensor_id FROM sensors WHERE sensor_id = ?');
+    $stmt = $db->prepare('SELECT sensor_id, decoder FROM sensors WHERE sensor_id = ?');
     $stmt->execute([is_int($sensor) || (is_string($sensor) && ctype_digit($sensor)) ? $sensor : 0]);
 
-    return $stmt->fetchColumn() ?: respond(404, ['error' => 'sensor not found']);
+    return $stmt->fetch() ?: respond(404, ['error' => 'sensor not found']);
 }
 
 // Every reading of a sensor as CSV, oldest first per value, in the units they're stored in.
@@ -211,7 +211,7 @@ function export_readings(): never
 {
     $db = get_db();
     require_session($db);
-    $sensor = read_sensor($db, $_GET['sensor'] ?? null);
+    $sensor = read_sensor($db, $_GET['sensor'] ?? null)['sensor_id'];
 
     // Rows go out as they're read, so a long history doesn't have to fit in memory.
     $db->setAttribute(Pdo\Mysql::ATTR_USE_BUFFERED_QUERY, false);
@@ -244,17 +244,20 @@ function import_readings(): never
     $db = get_db();
     require_session($db);
     $data = read_json(IMPORT_BODY_BYTES);
-    $sensor = read_sensor($db, $data['sensor'] ?? null);
+    ['sensor_id' => $sensor, 'decoder' => $decoder] = read_sensor($db, $data['sensor'] ?? null);
     $rows = $data['readings'] ?? null;
 
     if (!is_array($rows) || !array_is_list($rows) || $rows === [] || count($rows) > IMPORT_ROWS) {
         respond(400, ['error' => 'readings must be a list of 1 to ' . IMPORT_ROWS . ' readings']);
     }
 
-    $metrics = [];
+    $known = fn() => array_column($db->query('SELECT name, metric_id, unit, default_interval FROM metrics')->fetchAll(), null, 'name');
+    $metrics = $known();
+    // A value the sensor's decoder declares counts too, also when no sensor sent one yet.
+    $names = array_unique(array_filter(array_map(fn(mixed $row) => is_array($row) && is_string($row[0] ?? null) ? $row[0] : null, $rows)));
 
-    foreach ($db->query('SELECT name, metric_id, unit, default_interval FROM metrics') as $metric) {
-        $metrics[$metric['name']] = $metric;
+    if (add_metrics($db, $decoder, array_diff($names, array_keys($metrics)))) {
+        $metrics = $known();
     }
 
     // Each reading is [metric, time, value] or [metric, time, value, unit]. Unknown values, other units and times in the future don't count.

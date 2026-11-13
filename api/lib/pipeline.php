@@ -44,6 +44,34 @@ function parse_advert(string $payload): array
     return $advert;
 }
 
+// The metrics there are, by name, with how a sensor records each of them if it does.
+function sensor_metric_rows(PDO $db, int $sensor_id): array
+{
+    $stmt = $db->prepare(
+        'SELECT m.name, m.metric_id, m.default_interval, sm.report_interval, sm.is_active
+         FROM metrics m
+         LEFT JOIN sensor_metrics sm ON sm.metric_id = m.metric_id AND sm.sensor_id = ?'
+    );
+    $stmt->execute([$sensor_id]);
+
+    return array_column($stmt->fetchAll(), null, 'name');
+}
+
+// Adds the values a decoder declares to the metrics, so a new kind of value needs no database change, and says whether
+// there were any. Only call it for values that are missing: metric_id is small, and an insert that's ignored can still use up an id.
+function add_metrics(PDO $db, string $decoder, array $names): bool
+{
+    $declared = in_array($decoder, DECODERS, true) ? plugin('decoders', $decoder)['metrics'] ?? [] : [];
+    $new = array_intersect_key($declared, array_flip($names));
+    $insert = $db->prepare('INSERT IGNORE INTO metrics (name, unit, default_interval) VALUES (?, ?, ?)');
+
+    foreach ($new as $name => [$unit, $interval]) {
+        $insert->execute([$name, $unit, $interval]);
+    }
+
+    return $new !== [];
+}
+
 function ingest_advert(PDO $db, array $sensor, string $payload, int $time): int
 {
     if (!in_array($sensor['decoder'], DECODERS, true)) {
@@ -56,26 +84,22 @@ function ingest_advert(PDO $db, array $sensor, string $payload, int $time): int
         return 0;
     }
 
-    $stmt = $db->prepare(
-        'SELECT m.name, m.metric_id, m.default_interval, sm.report_interval, sm.is_active
-         FROM metrics m
-         LEFT JOIN sensor_metrics sm ON sm.metric_id = m.metric_id AND sm.sensor_id = ?'
-    );
-    $stmt->execute([$sensor['sensor_id']]);
+    $rows = sensor_metric_rows($db, $sensor['sensor_id']);
+
+    if (add_metrics($db, $sensor['decoder'], array_keys(array_diff_key($values, $rows)))) {
+        $rows = sensor_metric_rows($db, $sensor['sensor_id']);
+    }
+
     $discover = $db->prepare('INSERT IGNORE INTO sensor_metrics (sensor_id, metric_id, report_interval) VALUES (?, ?, ?)');
     $metrics = [];
 
-    foreach ($stmt as $row) {
-        if (!isset($values[$row['name']])) {
-            continue;
-        }
-
+    foreach (array_intersect_key($rows, $values) as $name => $row) {
         if ($row['report_interval'] === null) {
             $discover->execute([$sensor['sensor_id'], $row['metric_id'], $row['default_interval']]);
         }
 
         if ($row['is_active'] ?? true) {
-            $metrics[] = ['id' => $row['metric_id'], 'interval' => $row['report_interval'] ?? $row['default_interval'], 'value' => $values[$row['name']]];
+            $metrics[] = ['id' => $row['metric_id'], 'interval' => $row['report_interval'] ?? $row['default_interval'], 'value' => $values[$name]];
         }
     }
 
