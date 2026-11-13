@@ -103,10 +103,10 @@ function Header({ title, subtitle, time, large }: { title: string; subtitle?: st
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
-        <div className="truncate text-[15px] font-semibold">{title}</div>
-        {subtitle && <div className="truncate text-[13px] text-muted">{subtitle}</div>}
+        <div className="truncate text-subheadline font-semibold">{title}</div>
+        {subtitle && <div className="truncate text-footnote text-muted">{subtitle}</div>}
       </div>
-      {time && large && <span className="shrink-0 text-[13px] text-muted">{time}</span>}
+      {time && large && <span className="shrink-0 text-footnote text-muted">{time}</span>}
     </div>
   );
 }
@@ -145,7 +145,7 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
         {/* Without a graph the value takes its room. */}
         <MetricValue metric={name} value={value} unit={unit} size={spark ? (large ? 'huge' : 'large') : large ? 'giant' : 'huge'} />
         {combined && large && numbers.length > 1 && (
-          <span className="truncate text-[13px] text-muted">
+          <span className="truncate text-footnote text-muted">
             {formatNumber(Math.min(...numbers), style.decimals)}–{formatNumber(Math.max(...numbers), style.decimals)}
             {unitText(unit)}
           </span>
@@ -190,7 +190,7 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
     return (
       <>
         <Header title={sensor.name} time={null} large={large} />
-        <div className="mt-auto text-[13px] text-muted">Waiting for data</div>
+        <div className="mt-auto text-footnote text-muted">Waiting for data</div>
       </>
     );
   }
@@ -269,7 +269,7 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
         <MetricValue metric="battery" value={level} unit="%" size={large ? 'huge' : 'large'} />
         {level !== null && <BatteryShape level={level} low={low} className={large ? 'h-9' : 'h-6'} />}
         {low && (
-          <span className="flex min-w-0 items-center gap-1 text-[13px] font-semibold" style={{ color: 'var(--status-warning)' }}>
+          <span className="flex min-w-0 items-center gap-1 text-footnote font-semibold" style={{ color: 'var(--status-warning)' }}>
             <WarningCircleIcon weight="fill" className="size-4 shrink-0" aria-hidden="true" />
             <span className={`truncate ${large ? '' : 'sr-only'}`}>Low</span>
           </span>
@@ -296,12 +296,12 @@ function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteri
     <>
       <div className="flex items-center gap-2.5">
         <MetricChip metric="battery" />
-        <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">Batteries</span>
-        {hidden > 0 && <span className="shrink-0 text-[13px] text-muted">+{hidden}</span>}
+        <span className="min-w-0 flex-1 truncate text-subheadline font-semibold">Batteries</span>
+        {hidden > 0 && <span className="shrink-0 text-footnote text-muted">+{hidden}</span>}
       </div>
       <ul className={`mt-auto gap-x-6 gap-y-1.5 pt-3 ${layout}`}>
         {list.map(({ sensor, level, low }) => (
-          <li key={sensor.id} className="flex min-w-0 items-center gap-2 text-[15px]">
+          <li key={sensor.id} className="flex min-w-0 items-center gap-2 text-subheadline">
             <span className="min-w-0 flex-1 truncate">{sensor.name}</span>
             {low && <WarningCircleIcon weight="fill" className="size-4 shrink-0" style={{ color: 'var(--status-warning)' }} aria-label="Low" />}
             {level !== null && <BatteryFill level={level} low={low} className={`h-1.5 w-16 shrink-0 ${bars}`} />}

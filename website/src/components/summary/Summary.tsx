@@ -278,7 +278,7 @@ export default function Summary() {
       {data && (
         <>
           {!history && <Notices sensors={sensors} devices={devices} now={now} />}
-          {cards.length === 0 && !history && <p className="px-1 text-[15px] text-muted">Nothing pinned yet. Choose Edit to add sensors and values.</p>}
+          {cards.length === 0 && !history && <p className="px-1 text-subheadline text-muted">Nothing pinned yet. Choose Edit to add sensors and values.</p>}
           <div className="@container">
             <DndContext
               sensors={dragSensors}

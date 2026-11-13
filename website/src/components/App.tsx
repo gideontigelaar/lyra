@@ -70,7 +70,7 @@ function NotFound() {
   return (
     <>
       <PageHeader title="Page not found" />
-      <p className="text-[17px] text-muted">This page doesn't exist.</p>
+      <p className="text-body text-muted">This page doesn't exist.</p>
     </>
   );
 }
@@ -104,7 +104,7 @@ function Tabs({ current, bottom = false }: { current?: Tab; bottom?: boolean }) 
           data-tab={id}
           aria-current={id === current ? 'page' : undefined}
           className={`flex items-center rounded-full font-semibold transition duration-200 ease-out aria-[current=page]:bg-accent/10 aria-[current=page]:text-accent ${
-            bottom ? 'min-w-20 flex-col gap-0.5 px-4 py-1.5 text-[11px]' : 'gap-2 px-4 py-1.5 text-sm'
+            bottom ? 'min-w-20 flex-col gap-0.5 px-4 py-1.5 text-caption-2' : 'gap-2 px-4 py-1.5 text-sm'
           }`}
         >
           <Icon weight="fill" className={bottom ? 'size-6' : 'size-5'} aria-hidden="true" />
@@ -189,7 +189,7 @@ export default function App() {
       {/* The demo banner stays in view with the header. */}
       <div className="sticky top-0 z-20">
         {isDemo() && (
-          <aside aria-label="Demo" className="bg-accent px-4 py-1.5 text-center text-[13px] font-semibold text-white dark:text-navy-950">
+          <aside aria-label="Demo" className="bg-accent px-4 py-1.5 text-center text-footnote font-semibold text-white dark:text-navy-950">
             Demo with sample data. Changes reset upon reload.{' '}
             <a href="/login/" onClick={endDemo} className="underline underline-offset-2">
               Exit demo

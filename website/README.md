@@ -36,7 +36,8 @@ Add `--dry-run` first to see what would change. Files deleted locally are delete
 - Under a sensor's Backup, Export Data downloads every reading as a CSV file and Import Data adds the readings of one that aren't there yet, see `src/lib/backup.ts`. A file Excel saved again, with semicolons and decimal commas, still imports.
 - A source's Diagnostics show the health it reports every 5 minutes.
 - `src/lib/metrics.ts` sets each value's label, icon, decimals and colour. Battery only shows outside a sensor's page and the Batteries card when it's low, battery voltage only under a sensor's Details.
-- Animations only use Tailwind's own utilities. Changing the theme crossfades the page with a view transition where the browser has one.
+- Animations only use Tailwind's own utilities, and none play when the device asks for reduced motion. Changing the theme crossfades the page with a view transition where the browser has one.
+- Text sizes are named after Apple's text styles, like `text-body` and `text-footnote`, see `@theme` in `src/styles/global.css`.
 - Errors and confirmations, like a copy, a removal or pinning, show as alerts floating at the top, see `src/lib/toast.ts`. The page itself only says when something is loading or empty.
 - The wordmark is Bricolage Grotesque turned into outlines, so no font gets loaded. Text uses the system font.
 - Search engines are asked not to index it.

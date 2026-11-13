@@ -180,7 +180,7 @@ export default function RangeChart({ id, points, before, after, start, end, slot
           {y.ticks.map((tick) => (
             <g key={tick}>
               <line x1={0} x2={plotWidth} y1={yPos(tick)} y2={yPos(tick)} className="stroke-line" />
-              <text x={plotWidth + 8} y={yPos(tick)} dy="0.35em" className="fill-muted text-[11px] tabular-nums">
+              <text x={plotWidth + 8} y={yPos(tick)} dy="0.35em" className="fill-muted text-caption-2 tabular-nums">
                 {formatNumber(tick, labelDecimals)}
               </text>
             </g>
@@ -189,7 +189,7 @@ export default function RangeChart({ id, points, before, after, start, end, slot
           {ticks.map((tick) => (
             <g key={tick.time}>
               <line x1={x(tick.time)} x2={x(tick.time)} y1={TOP} y2={TOP + plotHeight + 6} className="stroke-line" strokeOpacity={0.6} />
-              <text x={x(tick.time) + 4} y={HEIGHT - 6} className="fill-muted text-[11px]">
+              <text x={x(tick.time) + 4} y={HEIGHT - 6} className="fill-muted text-caption-2">
                 {tick.label}
               </text>
             </g>
@@ -228,7 +228,7 @@ export default function RangeChart({ id, points, before, after, start, end, slot
             </>
           )}
           {!points.length && (
-            <text x={plotWidth / 2} y={TOP + plotHeight / 2} textAnchor="middle" className="fill-muted text-[15px] font-semibold">
+            <text x={plotWidth / 2} y={TOP + plotHeight / 2} textAnchor="middle" className="fill-muted text-subheadline font-semibold">
               No Data
             </text>
           )}

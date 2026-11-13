@@ -139,8 +139,8 @@ export default function SensorPage({ params }: { params: Params }) {
                 >
                   <span className={`flex w-full items-center gap-2 ${narrow ? 'max-sm:flex-col max-sm:items-start max-sm:gap-1.5' : ''}`}>
                     <MetricChip metric={metric.name} small />
-                    <span className={`max-w-full truncate text-[15px] font-semibold ${narrow ? 'max-sm:text-[13px] max-sm:tracking-tight' : ''}`}>{style.label}</span>
-                    {metric.latest && <span className={`ml-auto shrink-0 text-[13px] text-muted ${narrow ? 'max-md:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
+                    <span className={`max-w-full truncate text-subheadline font-semibold ${narrow ? 'max-sm:text-footnote max-sm:tracking-tight' : ''}`}>{style.label}</span>
+                    {metric.latest && <span className={`ml-auto shrink-0 text-footnote text-muted ${narrow ? 'max-md:hidden' : ''}`}>{clockTime(metric.latest.measured_at, now)}</span>}
                   </span>
                   <MetricValue metric={metric.name} value={metric.latest?.value ?? null} unit={metric.unit} />
                 </button>
@@ -171,7 +171,7 @@ export default function SensorPage({ params }: { params: Params }) {
           </Section>
         </>
       ) : (
-        <p className="px-1 text-[15px] text-muted">Waiting for the first reading.</p>
+        <p className="px-1 text-subheadline text-muted">Waiting for the first reading.</p>
       )}
       <Fold title="Settings" hint="Recording, details, remove" defaultOpen={!shown || sensor.device === null}>
         {metrics.length > 0 && (
@@ -238,8 +238,8 @@ export default function SensorPage({ params }: { params: Params }) {
           />
           <Row label="Type" detail={data.decoders.find((item) => item.name === sensor.decoder)?.label ?? sensor.decoder} />
           <button type="button" className={`${row} ${pressable}`} onClick={() => copy(sensor.address, 'MAC address')}>
-            <span className="min-w-0 flex-1 text-[17px]">MAC address</span>
-            <CopyText text={sensor.address} copied={copied} className="font-mono text-[15px] text-muted" />
+            <span className="min-w-0 flex-1 text-body">MAC address</span>
+            <CopyText text={sensor.address} copied={copied} className="font-mono text-subheadline text-muted" />
             <span className="text-muted/70">
               <CopyMark copied={copied} />
             </span>

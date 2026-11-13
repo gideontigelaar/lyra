@@ -60,7 +60,7 @@ export default function SourceList() {
                 label={
                   <>
                     <span className="block truncate">{device.name}</span>
-                    <span className="block truncate text-[13px] text-muted">{sourceStatus(device, now)}</span>
+                    <span className="block truncate text-footnote text-muted">{sourceStatus(device, now)}</span>
                   </>
                 }
                 detail={`${device.sensors.length} ${device.sensors.length === 1 ? 'sensor' : 'sensors'}`}
@@ -68,7 +68,7 @@ export default function SourceList() {
             ))}
           </Section>
         ) : (
-          <p className="px-1 text-[15px] text-muted">No sources yet. Add one to get its key.</p>
+          <p className="px-1 text-subheadline text-muted">No sources yet. Add one to get its key.</p>
         ))}
       <TextDialog open={adding} title="Add Source" label="Name" value="" onClose={() => setAdding(false)} onSave={add} />
       <KeyDialog value={key} onClose={() => setKey(null)} />

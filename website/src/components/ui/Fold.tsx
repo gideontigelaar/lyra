@@ -19,8 +19,8 @@ export default function Fold({ title, hint, defaultOpen = false, children }: Pro
       <h2>
         <button type="button" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)} className={`${row} ${pressable}`}>
           <span className="min-w-0 flex-1">
-            <span className="block text-[17px] font-semibold">{title}</span>
-            <span className="block truncate text-[13px] font-normal text-muted">{hint}</span>
+            <span className="block text-body font-semibold">{title}</span>
+            <span className="block truncate text-footnote font-normal text-muted">{hint}</span>
           </span>
           <CaretDownIcon weight="bold" className={`size-4 shrink-0 text-muted transition-transform duration-300 ease-out ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
         </button>

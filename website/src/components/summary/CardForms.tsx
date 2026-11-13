@@ -61,7 +61,7 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
 
   return (
     <>
-      <p className="mb-4 text-[15px] text-muted">{intro}</p>
+      <p className="mb-4 text-subheadline text-muted">{intro}</p>
       {before}
       <h3 className={`${sectionTitle} mb-2 px-1`}>{what === 'sensors' ? 'Sensors' : 'Values'}</h3>
       <div className={`${group} divide-y divide-line`}>
@@ -70,15 +70,15 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
           return (
             <div key={key} className={row}>
               {icon}
-              <span className="min-w-0 flex-1 truncate text-[17px]">{label}</span>
+              <span className="min-w-0 flex-1 truncate text-body">{label}</span>
               <Toggle on={on} disabled={!on && picked.length >= max} label={`Include ${label}`} onClick={() => onPick(on ? picked.filter((item) => item !== key) : [...picked, key])} />
             </div>
           );
         })}
       </div>
-      <p className="mt-2 px-4 text-[13px] text-muted">{note ?? `Up to ${max} ${what} per card.`}</p>
+      <p className="mt-2 px-4 text-footnote text-muted">{note ?? `Up to ${max} ${what} per card.`}</p>
       {after}
-      <button type="button" className={`${primaryButton} mt-5 w-full py-3 text-[17px]`} disabled={picked.length < min || exists} onClick={() => onSubmit(card)}>
+      <button type="button" className={`${primaryButton} mt-5 w-full py-3 text-body`} disabled={picked.length < min || exists} onClick={() => onSubmit(card)}>
         {exists
           ? 'Already on Summary'
           : picked.length < min
@@ -110,7 +110,7 @@ export function ValuesForm({ sensor, ...props }: FormProps & { sensor: Sensor })
   const card: Card = picked.length === 1 ? { type: 'metric', size, sensor: sensor.id, metric: picked[0], graph } : { type: 'sensor', size, sensor: sensor.id, metric: null, metrics: picked, graph };
 
   if (!options.length) {
-    return <p className="px-1 text-[15px] text-muted">No values yet. They show up here after the first reading.</p>;
+    return <p className="px-1 text-subheadline text-muted">No values yet. They show up here after the first reading.</p>;
   }
 
   return (

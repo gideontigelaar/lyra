@@ -11,9 +11,9 @@ export default function KeyDialog({ value, onClose }: Props) {
   const { copied, copy } = useCopy();
   return (
     <Dialog open={value !== null} title="Source Key" onClose={onClose}>
-      <p className="text-[15px] text-muted">Add this key to the source's firmware and flash it. It's only shown now.</p>
+      <p className="text-subheadline text-muted">Add this key to the source's firmware and flash it. It's only shown now.</p>
       {/* One tap selects the whole key, for copying it by hand. */}
-      <p className="mt-4 rounded-2xl bg-surface p-4 font-mono text-[14px] break-all select-all">{value}</p>
+      <p className="mt-4 rounded-2xl bg-surface p-4 font-mono text-sm break-all select-all">{value}</p>
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" className={secondaryButton} onClick={() => copy(value ?? '', 'key')}>
           <CopyMark copied={copied} />

@@ -156,8 +156,8 @@ export default function DataPage({ params }: { params: Params }) {
                 ) : (
                   <CircleIcon className="size-6 shrink-0 text-muted/60" aria-hidden="true" />
                 )}
-                <span className="flex-1 text-[17px] tabular-nums">{format(point)}</span>
-                <span className="text-[17px] text-muted">{detail(point)}</span>
+                <span className="flex-1 text-body tabular-nums">{format(point)}</span>
+                <span className="text-body text-muted">{detail(point)}</span>
               </button>
             ) : (
               <Row
@@ -170,7 +170,7 @@ export default function DataPage({ params }: { params: Params }) {
           )}
         </div>
       )}
-      {!loading && !items.length && <p className="px-1 text-[15px] text-muted">No data recorded.</p>}
+      {!loading && !items.length && <p className="px-1 text-subheadline text-muted">No data recorded.</p>}
       {loading && <Message loading />}
       {!exhausted && !loading && (
         <button type="button" className={`${secondaryButton} mt-4 w-full`} onClick={() => setWindowEnd(startOfDay(windowEnd, -WINDOW_DAYS))}>

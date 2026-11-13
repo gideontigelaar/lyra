@@ -64,8 +64,8 @@ export default function Notices(props: Props) {
         <a key={key} href={href} className={`${row} ${pressable}`}>
           <WarningCircleIcon weight="fill" className="size-5 shrink-0" style={{ color: 'var(--status-warning)' }} aria-hidden="true" />
           <span className="min-w-0 flex-1">
-            <span className="block text-[17px]">{text}</span>
-            <span className="block text-[13px] text-muted">{detail}</span>
+            <span className="block text-body">{text}</span>
+            <span className="block text-footnote text-muted">{detail}</span>
           </span>
           <CaretRightIcon weight="bold" className="size-3.5 shrink-0 text-muted/70" aria-hidden="true" />
         </a>

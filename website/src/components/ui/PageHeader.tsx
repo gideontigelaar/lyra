@@ -23,17 +23,17 @@ export default function PageHeader({ title, subtitle, back, actions }: Props) {
             event.preventDefault();
             goBack(target.href);
           }}
-          className="-ml-1.5 inline-flex max-w-full min-w-0 items-center gap-0.5 rounded-full py-1 pr-2 text-[15px] text-accent transition-opacity hover:opacity-70"
+          className="-ml-1.5 inline-flex max-w-full min-w-0 items-center gap-0.5 rounded-full py-1 pr-2 text-subheadline text-accent transition-opacity hover:opacity-70"
         >
           <CaretLeftIcon className="size-4 shrink-0" weight="bold" aria-hidden="true" />
           <span className="truncate">{target.label}</span>
         </a>
       )}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-[28px] leading-tight font-bold tracking-tight [overflow-wrap:anywhere] sm:text-[32px]">{title}</h1>
+        <h1 className="text-title-1 leading-tight font-bold tracking-tight [overflow-wrap:anywhere] sm:text-large-title">{title}</h1>
         {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
       </div>
-      {subtitle && <div className="mt-0.5 text-[15px] text-muted">{subtitle}</div>}
+      {subtitle && <div className="mt-0.5 text-subheadline text-muted">{subtitle}</div>}
     </div>
   );
 }

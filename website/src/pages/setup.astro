@@ -10,17 +10,17 @@ import { card, input, label, primaryButton } from '../lib/ui';
     <form class:list={[card, 'p-8']} data-setup>
       <Wordmark className="mx-auto h-10 w-auto" />
       <h1 class="mt-6 text-center text-xl font-bold tracking-tight">Set up a passkey</h1>
-      <p class="mt-1 text-center text-[15px] text-muted">Enter your setup code to create your first passkey.</p>
+      <p class="mt-1 text-center text-subheadline text-muted">Enter your setup code to create your first passkey.</p>
       <label for="setup-code" class:list={[label, 'mt-6']}>Setup code</label>
       <input id="setup-code" name="code" class={input} autocomplete="one-time-code" spellcheck="false" required />
       <label for="passkey-name" class:list={[label, 'mt-4']}>Passkey name</label>
       <input id="passkey-name" name="name" class={input} maxlength="50" required />
-      <button type="submit" class:list={[primaryButton, 'mt-6 w-full py-3 text-[17px]']}>
+      <button type="submit" class:list={[primaryButton, 'mt-6 w-full py-3 text-body']}>
         <KeyIcon class="size-5" aria-hidden="true" />
         Create passkey
       </button>
-      <p class="mt-3 text-[15px] text-muted" hidden data-unsupported>This browser is too old to create a passkey. Update it or use another browser.</p>
-      <p class="mt-6 text-center text-[15px] text-muted">Already have a passkey? <a href="/login/" class="font-semibold text-accent">Sign in</a></p>
+      <p class="mt-3 text-subheadline text-muted" hidden data-unsupported>This browser is too old to create a passkey. Update it or use another browser.</p>
+      <p class="mt-6 text-center text-subheadline text-muted">Already have a passkey? <a href="/login/" class="font-semibold text-accent">Sign in</a></p>
     </form>
   </div>
 </Layout>

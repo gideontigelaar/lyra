@@ -118,8 +118,8 @@ export default function SourcePage({ params }: { params: Params }) {
                   <CheckCircleIcon weight="fill" className={`col-start-1 row-start-1 size-6 text-accent transition duration-200 ${picked ? '' : 'scale-50 opacity-0'}`} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[17px]">{sensor.name}</span>
-                  {elsewhere && <span className="block truncate text-[13px] text-muted">Now on {elsewhere.name}</span>}
+                  <span className="block truncate text-body">{sensor.name}</span>
+                  {elsewhere && <span className="block truncate text-footnote text-muted">Now on {elsewhere.name}</span>}
                 </span>
               </button>
             );

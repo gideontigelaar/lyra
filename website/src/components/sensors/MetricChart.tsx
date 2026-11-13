@@ -94,18 +94,18 @@ export default function MetricChart({ sensors, metric }: Props) {
       <Segmented label="Period" options={PERIODS} value={period} onChange={changePeriod} />
       <div className="mt-5 flex items-end justify-between gap-3" aria-live="polite">
         <div className="min-w-0">
-          <div className="text-[13px] font-semibold tracking-wide text-muted uppercase">{point && point.min === point.max ? 'Reading' : 'Range'}</div>
+          <div className="text-footnote font-semibold tracking-wide text-muted uppercase">{point && point.min === point.max ? 'Reading' : 'Range'}</div>
           <div className="tabular-nums">
             {value ? (
               <>
-                <span className="text-[34px] leading-tight font-semibold tracking-tight">{value}</span>
-                <span className="text-[17px] font-semibold text-muted">{unit}</span>
+                <span className="text-large-title leading-tight font-semibold tracking-tight">{value}</span>
+                <span className="text-body font-semibold text-muted">{unit}</span>
               </>
             ) : (
-              <span className="text-[34px] leading-tight font-semibold tracking-tight text-muted">{points ? 'No Data' : '…'}</span>
+              <span className="text-large-title leading-tight font-semibold tracking-tight text-muted">{points ? 'No Data' : '…'}</span>
             )}
           </div>
-          <div className="text-[15px] text-muted">{point && point.min !== point.max ? `${title} · average ${formatNumber(point.avg, style.decimals)}${unit}` : title}</div>
+          <div className="text-subheadline text-muted">{point && point.min !== point.max ? `${title} · average ${formatNumber(point.avg, style.decimals)}${unit}` : title}</div>
         </div>
         <div className="flex shrink-0 gap-1 pb-0.5">
           <button type="button" className={iconButton} onClick={() => setStart(config.shift(start, -1))} aria-label={`Previous ${config.label.toLowerCase()}`}>

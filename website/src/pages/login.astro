@@ -9,13 +9,13 @@ import { card, primaryButton, secondaryButton } from '../lib/ui';
   <div class:list={[card, 'mx-auto w-full max-w-sm p-8 text-center']}>
     <h1 class="sr-only">Sign in</h1>
     <Wordmark className="mx-auto h-10 w-auto" />
-    <button type="button" class:list={[primaryButton, 'mt-8 w-full py-3 text-[17px]']} data-sign-in>
+    <button type="button" class:list={[primaryButton, 'mt-8 w-full py-3 text-body']} data-sign-in>
       <KeyIcon class="size-5" aria-hidden="true" />
       Sign in with a passkey
     </button>
-    <p class="mt-3 text-[15px] text-muted" hidden data-unsupported>This browser is too old for passkey sign-in. Update it or use another browser.</p>
-    <button type="button" class:list={[secondaryButton, 'mt-3 w-full py-3 text-[17px]']} data-demo>Try the demo</button>
-    <p class="mt-6 text-[15px] text-muted" hidden data-setup>First time here? <a href="/setup/" class="font-semibold text-accent">Use a setup code</a></p>
+    <p class="mt-3 text-subheadline text-muted" hidden data-unsupported>This browser is too old for passkey sign-in. Update it or use another browser.</p>
+    <button type="button" class:list={[secondaryButton, 'mt-3 w-full py-3 text-body']} data-demo>Try the demo</button>
+    <p class="mt-6 text-subheadline text-muted" hidden data-setup>First time here? <a href="/setup/" class="font-semibold text-accent">Use a setup code</a></p>
   </div>
 </Layout>
 

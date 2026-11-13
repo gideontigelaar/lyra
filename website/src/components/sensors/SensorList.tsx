@@ -74,7 +74,7 @@ export default function SensorList() {
                     label={
                       <>
                         <span className="block truncate">{sensor.name}</span>
-                        {note && <span className="block truncate text-[13px] text-muted">{note}</span>}
+                        {note && <span className="block truncate text-footnote text-muted">{note}</span>}
                       </>
                     }
                     detail={<span className="tabular-nums">{sensorSummary(sensor)}</span>}
@@ -83,7 +83,7 @@ export default function SensorList() {
               })}
             </Section>
           ) : (
-            <p className="px-1 text-[15px] text-muted">No sensors yet. Add one with its MAC address.</p>
+            <p className="px-1 text-subheadline text-muted">No sensors yet. Add one with its MAC address.</p>
           )}
           <AddSensor open={adding} decoders={data[2].decoders} devices={data[1].devices} onClose={() => setAdding(false)} />
         </>

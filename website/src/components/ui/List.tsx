@@ -19,7 +19,7 @@ export function Section({ title, action, footer, children }: SectionProps) {
         </div>
       )}
       <div className={`${group} divide-y divide-line`}>{children}</div>
-      {footer && <div className="mt-2 px-4 text-[13px] text-muted">{footer}</div>}
+      {footer && <div className="mt-2 px-4 text-footnote text-muted">{footer}</div>}
     </section>
   );
 }
@@ -39,8 +39,8 @@ export function Row({ label, icon, detail, trailing, href, onClick, danger, disa
   const content = (
     <>
       {icon}
-      <span className={`min-w-0 flex-1 text-[17px] ${danger ? 'text-danger' : ''}`}>{label}</span>
-      {detail && <span className="min-w-0 shrink truncate text-right text-[17px] text-muted">{detail}</span>}
+      <span className={`min-w-0 flex-1 text-body ${danger ? 'text-danger' : ''}`}>{label}</span>
+      {detail && <span className="min-w-0 shrink truncate text-right text-body text-muted">{detail}</span>}
       {trailing}
       {(href || (onClick && !danger)) && <CaretRightIcon className="size-4 shrink-0 text-muted/70" weight="bold" aria-hidden="true" />}
     </>

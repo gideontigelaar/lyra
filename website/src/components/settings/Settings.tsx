@@ -183,7 +183,7 @@ export default function Settings() {
               label={
                 <>
                   <span className="block truncate">{passkey.name}</span>
-                  <span className="block truncate text-[13px] text-muted">
+                  <span className="block truncate text-footnote text-muted">
                     {passkey.current ? 'Used to sign in here' : passkey.last_used_at ? `Used ${timeAgo(passkey.last_used_at, now)}` : 'Never used'} · added{' '}
                     {formatDate(Date.parse(passkey.created_at), 'date')}
                   </span>
@@ -191,7 +191,7 @@ export default function Settings() {
               }
               trailing={
                 <span title={data[0].passkeys.length === 1 ? "The last passkey can't be removed" : undefined}>
-                  <button type="button" className={`${textButton} text-[15px] text-danger`} disabled={data[0].passkeys.length === 1} onClick={() => setRemoving(passkey)}>
+                  <button type="button" className={`${textButton} text-subheadline text-danger`} disabled={data[0].passkeys.length === 1} onClick={() => setRemoving(passkey)}>
                     Remove
                   </button>
                 </span>
@@ -209,14 +209,14 @@ export default function Settings() {
               label={
                 <>
                   <span className="block truncate">{browserName(session.user_agent)}</span>
-                  <span className="block truncate text-[13px] text-muted">
+                  <span className="block truncate text-footnote text-muted">
                     {session.current ? 'This browser' : `Active ${timeAgo(session.last_used_at, now)}`} · {session.passkey} passkey · since {formatDate(Date.parse(session.created_at), 'day')}
                   </span>
                 </>
               }
               trailing={
                 !session.current && (
-                  <button type="button" aria-label={`Sign out ${browserName(session.user_agent)}`} className={`${textButton} text-[15px] text-danger`} onClick={() => setEnding(session)}>
+                  <button type="button" aria-label={`Sign out ${browserName(session.user_agent)}`} className={`${textButton} text-subheadline text-danger`} onClick={() => setEnding(session)}>
                     Sign Out
                   </button>
                 )

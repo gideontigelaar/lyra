@@ -15,7 +15,7 @@ interface Props {
 export default function ConfirmDialog({ open, title, confirm, busy, onConfirm, onClose, children }: Props) {
   return (
     <Dialog open={open} title={title} onClose={onClose}>
-      <div className="text-[15px] text-muted">{children}</div>
+      <div className="text-subheadline text-muted">{children}</div>
       <div className="mt-6 flex justify-end gap-2">
         <button type="button" className={secondaryButton} onClick={onClose} disabled={busy}>
           Cancel

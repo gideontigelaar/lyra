@@ -92,7 +92,7 @@ function Form({ decoders, devices, onClose }: Omit<Props, 'open'>) {
           </select>
         </div>
       </div>
-      <p className="text-[13px] text-muted">The first values show up within a few minutes.</p>
+      <p className="text-footnote text-muted">The first values show up within a few minutes.</p>
       <Message error={error} />
       <div className="flex justify-end gap-2 pt-2">
         <button type="button" className={secondaryButton} onClick={onClose}>

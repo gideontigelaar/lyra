@@ -30,7 +30,7 @@ const summaryOf = (sensor: Sensor) =>
 
 function Back({ label, onClick }: { label: string; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="-ml-1.5 mb-3 inline-flex items-center gap-0.5 rounded-full py-1 pr-2 text-[15px] text-accent transition-opacity hover:opacity-70">
+    <button type="button" onClick={onClick} className="-ml-1.5 mb-3 inline-flex items-center gap-0.5 rounded-full py-1 pr-2 text-subheadline text-accent transition-opacity hover:opacity-70">
       <CaretLeftIcon weight="bold" className="size-4" aria-hidden="true" />
       {label}
     </button>
@@ -54,27 +54,27 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
 
   const sensorTiles = sensors.map((item) => (
     <button key={item.id} type="button" className={tile} onClick={() => setView({ kind: 'sensor', id: item.id })}>
-      <span className="w-full truncate text-[17px] font-semibold">{item.name}</span>
-      <span className="w-full truncate text-[13px] text-muted">{summaryOf(item)}</span>
+      <span className="w-full truncate text-body font-semibold">{item.name}</span>
+      <span className="w-full truncate text-footnote text-muted">{summaryOf(item)}</span>
     </button>
   ));
   const acrossTiles = [
     combinable && (
       <button key="average" type="button" className={tile} onClick={() => setView({ kind: 'average' })}>
-        <span className="flex items-center gap-2 text-[17px] font-semibold">
+        <span className="flex items-center gap-2 text-body font-semibold">
           <ArrowsMergeIcon weight="bold" className="size-5 text-accent" aria-hidden="true" />
           Average
         </span>
-        <span className="text-[13px] text-muted">One value over 2 to {MAX_PER_CARD.combined} sensors</span>
+        <span className="text-footnote text-muted">One value over 2 to {MAX_PER_CARD.combined} sensors</span>
       </button>
     ),
     batteries && (
       <button key="batteries" type="button" className={tile} onClick={() => setView({ kind: 'batteries' })}>
-        <span className="flex items-center gap-2 text-[17px] font-semibold">
+        <span className="flex items-center gap-2 text-body font-semibold">
           <MetricChip metric="battery" small />
           Batteries
         </span>
-        <span className="text-[13px] text-muted">Levels of up to {MAX_PER_CARD.batteries} sensors</span>
+        <span className="text-footnote text-muted">Levels of up to {MAX_PER_CARD.batteries} sensors</span>
       </button>
     ),
   ].filter(Boolean);
@@ -110,7 +110,7 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
             </>
           ))}
         {view.kind === 'home' && (
-          <button type="button" className={`${secondaryButton} mt-5 w-full py-3 text-[17px]`} onClick={close}>
+          <button type="button" className={`${secondaryButton} mt-5 w-full py-3 text-body`} onClick={close}>
             Cancel
           </button>
         )}

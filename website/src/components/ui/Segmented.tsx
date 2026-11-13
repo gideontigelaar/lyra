@@ -16,7 +16,7 @@ export default function Segmented<T extends string>({ label, options, value, onC
           type="button"
           aria-pressed={option === value}
           onClick={() => onChange(option)}
-          className="flex-1 rounded-full px-3 py-1.5 text-[13px] font-semibold transition duration-200 ease-out aria-pressed:bg-surface aria-pressed:shadow-sm dark:aria-pressed:bg-navy-700"
+          className="flex-1 rounded-full px-3 py-1.5 text-footnote font-semibold transition duration-200 ease-out aria-pressed:bg-surface aria-pressed:shadow-sm dark:aria-pressed:bg-navy-700"
         >
           {text(option)}
         </button>

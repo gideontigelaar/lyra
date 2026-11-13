@@ -72,7 +72,7 @@ const show = (kind: keyof typeof KINDS, message: string) => {
   const item = document.createElement('div');
   item.setAttribute('role', role);
   item.className =
-    'pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-2xl bg-surface py-3 pr-2 pl-3.5 text-[15px]/6 shadow-xl ring-1 ring-line transition duration-200 ease-out starting:-translate-y-2 starting:opacity-0 dark:bg-navy-800 dark:ring-navy-700';
+    'pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-2xl bg-surface py-3 pr-2 pl-3.5 text-subheadline/6 shadow-xl ring-1 ring-line transition duration-200 ease-out starting:-translate-y-2 starting:opacity-0 dark:bg-navy-800 dark:ring-navy-700';
 
   // The icon box is as tall as the first line of text, so the icon sits in its middle.
   const mark = document.createElement('span');

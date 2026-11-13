@@ -13,12 +13,12 @@ export const themeScript = `(() => {
   };
   // A later change crossfades the whole page at once, with the colour transitions of single elements paused so nothing changes on its own.
   const change = () => {
-    if (!document.startViewTransition) {
+    if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
       apply();
       return;
     }
-    root.classList.add('[&_*]:transition-none!');
-    document.startViewTransition(apply).finished.finally(() => root.classList.remove('[&_*]:transition-none!'));
+    root.classList.add('**:transition-none!');
+    document.startViewTransition(apply).finished.finally(() => root.classList.remove('**:transition-none!'));
   };
   apply();
   media.addEventListener('change', change);

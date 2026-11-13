@@ -43,7 +43,7 @@ export default function BatteriesPage({ params }: { params: Params }) {
             label={
               <>
                 <span className="block truncate">{sensor.name}</span>
-                <span className="flex items-center gap-1 text-[13px] text-muted">
+                <span className="flex items-center gap-1 text-footnote text-muted">
                   {low && (
                     <span className="flex items-center gap-1 font-semibold" style={{ color: 'var(--status-warning)' }}>
                       <WarningCircleIcon weight="fill" className="size-3.5" aria-hidden="true" />
@@ -57,7 +57,7 @@ export default function BatteriesPage({ params }: { params: Params }) {
             trailing={
               <>
                 {level !== null && <BatteryFill level={level} low={low} className="block h-1.5 w-16 shrink-0 sm:w-24" />}
-                <span className="w-11 shrink-0 text-right text-[17px] font-semibold tabular-nums">{level === null ? '–' : `${Math.round(level)}%`}</span>
+                <span className="w-11 shrink-0 text-right text-body font-semibold tabular-nums">{level === null ? '–' : `${Math.round(level)}%`}</span>
               </>
             }
           />

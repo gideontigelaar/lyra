@@ -52,8 +52,8 @@ export default function AveragePage({ params }: { params: Params }) {
       <div className={`${card} flex items-center gap-3 p-4`}>
         <MetricChip metric={metric} />
         <div className="min-w-0 flex-1">
-          <div className="text-[15px] font-semibold">{newest ? `Now · ${clockTime(newest, now)}` : 'Now'}</div>
-          {spread && <div className="truncate text-[13px] text-muted">{spread}</div>}
+          <div className="text-subheadline font-semibold">{newest ? `Now · ${clockTime(newest, now)}` : 'Now'}</div>
+          {spread && <div className="truncate text-footnote text-muted">{spread}</div>}
         </div>
         <MetricValue metric={metric} value={average} unit={unit} />
       </div>

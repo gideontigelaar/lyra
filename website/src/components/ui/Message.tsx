@@ -19,8 +19,8 @@ export default function Message({ error, loading }: Props) {
   }
 
   return error ? (
-    <p className="py-2 text-[15px] text-muted">Couldn't load this page.</p>
+    <p className="py-2 text-subheadline text-muted">Couldn't load this page.</p>
   ) : (
-    <p className="py-2 text-[15px] text-muted transition-opacity delay-300 duration-300 starting:opacity-0">Loading…</p>
+    <p className="py-2 text-subheadline text-muted transition-opacity delay-300 duration-300 starting:opacity-0">Loading…</p>
   );
 }
