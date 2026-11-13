@@ -1,6 +1,6 @@
 import { hasBattery, mainMetrics, metricStyle } from './metrics';
-import { SUMMARY, averagePath, batteriesPath, sensorPath } from './paths';
-import type { Card, Sensor, SensorMetric } from './types';
+import { SUMMARY, averagePath, batteriesPath, sensorPath, sourcePath } from './paths';
+import type { Card, Device, Sensor, SensorMetric } from './types';
 
 // The most a card holds: values on a sensor card, sensors on a batteries or combined card.
 export const MAX_PER_CARD = { sensor: 6, batteries: 6, combined: 3 };
@@ -14,6 +14,8 @@ export const cardKey = (card: Card) => {
     case 'batteries':
     case 'combined':
       return `${card.type}:${joined(card.sensors)}:${card.metric ?? ''}`;
+    case 'source':
+      return `source:${card.source}`;
     default:
       return `metric:${card.sensor}:${card.metric}`;
   }
@@ -34,9 +36,11 @@ const sensorValues = (sensor: Sensor) =>
     .map((metric) => metric.name)
     .slice(0, MAX_PER_CARD.sensor);
 
-// A card opens a page in Summary's tab: its sensor, on its value when it shows one, or a page of its own for an average or several batteries.
+// A card opens a page in Summary's tab: its sensor, on its value when it shows one, its source, or a page of its own for an average or several batteries.
 export const cardHref = (card: Card) => {
   switch (card.type) {
+    case 'source':
+      return sourcePath(card.source, SUMMARY);
     case 'batteries':
       return card.sensors.length === 1 ? sensorPath(card.sensors[0], 'battery', SUMMARY) : batteriesPath(card.sensors);
     case 'combined':
@@ -60,6 +64,7 @@ export const cardValues = (card: Card, sensors: Sensor[]): { sensor: Sensor; met
 
   switch (card.type) {
     case 'batteries':
+    case 'source':
       return [];
     case 'combined':
       return card.sensors.flatMap((id) => pick(id, (metric) => metric.name === card.metric));
@@ -89,7 +94,7 @@ const members = (ids: unknown, metric: string, min: number, max: number, sensors
   return list.length >= min ? list : null;
 };
 
-const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, graph: shown }: Record<string, unknown>, sensors: Sensor[]): Card | null => {
+const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, graph: shown, source }: Record<string, unknown>, sensors: Sensor[], devices: Device[]): Card | null => {
   if (size !== 'small' && size !== 'large') {
     return null;
   }
@@ -128,16 +133,18 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, grap
           ? { type, size, sensor: sensor as number, metric: metric as string, graph }
           : null;
     }
+    case 'source':
+      return devices.some((device) => device.id === source) ? { type, size, sensor: null, metric: null, source: source as number } : null;
     default:
       return null;
   }
 };
 
-export const toCards = (value: unknown, sensors: Sensor[]): Card[] | null => {
+export const toCards = (value: unknown, sensors: Sensor[], devices: Device[]): Card[] | null => {
   if (!Array.isArray(value)) {
     return null;
   }
 
-  const cards = value.flatMap((card) => (typeof card === 'object' && card !== null ? (toCard(card, sensors) ?? []) : []));
+  const cards = value.flatMap((card) => (typeof card === 'object' && card !== null ? (toCard(card, sensors, devices) ?? []) : []));
   return [...new Map(cards.map((card) => [cardKey(card), card])).values()];
 };

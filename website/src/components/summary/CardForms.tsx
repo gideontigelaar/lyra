@@ -2,7 +2,7 @@ import { CheckIcon, PlusIcon } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
 import { MAX_PER_CARD, canCombine, cardKey, fitValues, valueLimit } from '../../lib/cards';
 import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
-import type { Card, Sensor } from '../../lib/types';
+import type { Card, Device, Sensor } from '../../lib/types';
 import { group, placeholder, row, sectionTitle, widePrimaryButton } from '../../lib/ui';
 import MetricChip from '../MetricChip';
 import { Row } from '../ui/List';
@@ -43,7 +43,7 @@ interface FormProps {
 
 interface GroupProps<T> extends FormProps {
   intro?: string;
-  what: 'sensors' | 'values';
+  what: 'sensors' | 'values' | 'sources';
   options: { key: T; label: string; icon?: ReactNode }[];
   min?: number;
   max: number;
@@ -55,15 +55,16 @@ interface GroupProps<T> extends FormProps {
   after?: ReactNode;
 }
 
-// Picking the sensors or values of one card. Adding always closes the sheet, so the new card shows straight away.
+// Picking the sensors or values of one card, or just one of them when that's all it takes. Adding always closes the sheet, so the new card shows straight away.
 function Group<T extends number | string>({ intro, what, options, min = 2, max, picked, onPick, card, cards, editing, onSubmit, note, before, after }: GroupProps<T>) {
   const exists = cards.some((item) => item !== editing && cardKey(item) === cardKey(card));
+  const single = max === 1;
 
   return (
     <>
       {intro && <p className="mb-4 text-subheadline text-muted">{intro}</p>}
       {before}
-      <h3 className={`${sectionTitle} mb-2 px-1`}>{what === 'sensors' ? 'Sensors' : 'Values'}</h3>
+      <h3 className={`${sectionTitle} mb-2 px-1`}>{what}</h3>
       <div className={`${group} divide-y divide-line`}>
         {options.map(({ key, label, icon }) => {
           const on = picked.includes(key);
@@ -71,12 +72,17 @@ function Group<T extends number | string>({ intro, what, options, min = 2, max, 
             <div key={key} className={row}>
               {icon}
               <span className="min-w-0 flex-1 truncate text-body">{label}</span>
-              <Toggle on={on} disabled={!on && picked.length >= max} label={`Include ${label}`} onClick={() => onPick(on ? picked.filter((item) => item !== key) : [...picked, key])} />
+              <Toggle
+                on={on}
+                disabled={!single && !on && picked.length >= max}
+                label={`Include ${label}`}
+                onClick={() => onPick(on ? picked.filter((item) => item !== key) : single ? [key] : [...picked, key])}
+              />
             </div>
           );
         })}
       </div>
-      <p className="mt-2 px-4 text-footnote text-muted">{note ?? `Up to ${max} ${what} per card.`}</p>
+      {!single && <p className="mt-2 px-4 text-footnote text-muted">{note ?? `Up to ${max} ${what} per card.`}</p>}
       {after}
       <button type="button" className={`${widePrimaryButton} mt-6`} disabled={picked.length < min || exists} onClick={() => onSubmit(card)}>
         {exists
@@ -194,6 +200,26 @@ export function BatteriesForm({ sensors, ...props }: FormProps & { sensors: Sens
       options={sensorOptions(options)}
       min={1}
       max={MAX_PER_CARD.batteries}
+      picked={picked}
+      onPick={setPicked}
+      card={card}
+    />
+  );
+}
+
+export function SourceForm({ devices, ...props }: FormProps & { devices: Device[] }) {
+  const edited = props.editing?.type === 'source' ? props.editing : undefined;
+  const [picked, setPicked] = useState(() => (edited ? [edited.source] : devices.length === 1 ? [devices[0].id] : []));
+  const card: Card = { size: 'small', ...edited, type: 'source', sensor: null, metric: null, source: picked[0] ?? 0 };
+
+  return (
+    <Group
+      {...props}
+      intro="Shows whether a source is online, its Wi-Fi signal, uptime and free memory. A large card adds its chip temperature."
+      what="sources"
+      options={devices.map((device) => ({ key: device.id, label: device.name }))}
+      min={1}
+      max={1}
       picked={picked}
       onPick={setPicked}
       card={card}

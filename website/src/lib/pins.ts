@@ -1,8 +1,8 @@
 import { api } from './api';
 import { cardKey, defaultCards, toCards } from './cards';
-import type { Card, Sensor } from './types';
+import type { Card, Device, Sensor } from './types';
 
-export const loadPins = async (sensors: Sensor[]) => toCards((await api<{ cards: unknown }>('/dashboard')).cards, sensors) ?? defaultCards(sensors);
+export const loadPins = async (sensors: Sensor[], devices: Device[]) => toCards((await api<{ cards: unknown }>('/dashboard')).cards, sensors, devices) ?? defaultCards(sensors);
 
 export const togglePin = async (sensors: Sensor[], cards: Card[], card: Card) => {
   const next = cards.some((item) => cardKey(item) === cardKey(card)) ? cards.filter((item) => cardKey(item) !== cardKey(card)) : [...cards, card];

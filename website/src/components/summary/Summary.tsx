@@ -8,6 +8,7 @@ import { failure, useLoad } from '../../lib/load';
 import { fetchPoints } from '../../lib/readings';
 import { loadSensors } from '../../lib/sensors';
 import type { Card, Device } from '../../lib/types';
+import { displayUnit } from '../../lib/units';
 import { iconButton, placeholder, textButton } from '../../lib/ui';
 import Message from '../ui/Message';
 import PageHeader from '../ui/PageHeader';
@@ -46,7 +47,7 @@ interface History {
 }
 
 export default function Summary() {
-  const { data, error, reload } = useLoad(() => Promise.all([loadSensors(), api<{ devices: Device[] }>('/devices'), api<{ cards: unknown }>('/dashboard')]));
+  const { data, error, reload } = useLoad(() => Promise.all([loadSensors(), api<{ devices: Device[] }>('/devices'), api<{ cards: unknown }>('/dashboard'), displayUnit('°C')]));
   const [saved, setSaved] = useState<Card[] | null | undefined>(undefined);
   const [history, setHistory] = useState<History | null>(null);
   const [adding, setAdding] = useState(false);
@@ -93,12 +94,12 @@ export default function Summary() {
 
   const sensors = data?.[0] ?? [];
   const devices = data?.[1].devices ?? [];
-  const stored = saved === undefined ? (data ? toCards(data[2].cards, sensors) : null) : saved;
+  const stored = saved === undefined ? (data ? toCards(data[2].cards, sensors, devices) : null) : saved;
   const cards = history?.present ?? stored ?? defaultCards(sensors);
   const layout = layoutOf(cards, columns);
   const preview = order ? layoutOf(order.cards, columns) : layout;
   const rows = Math.max(rowsOf(preview), order?.rows ?? 0);
-  const sparkKeys = [...new Set(cards.flatMap((card) => (card.type === 'batteries' || !card.graph ? [] : cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name)))))];
+  const sparkKeys = [...new Set(cards.flatMap((card) => (!('graph' in card) || !card.graph ? [] : cardValues(card, sensors).map(({ sensor, metric }) => sparkKey(sensor.id, metric.name)))))];
 
   useEffect(() => {
     const refresh = setInterval(() => {
@@ -300,6 +301,8 @@ export default function Summary() {
                         key={key}
                         card={card}
                         sensors={sensors}
+                        devices={devices}
+                        temperature={data[3]}
                         sparks={sparks}
                         now={now}
                         editing={history !== null}
@@ -316,8 +319,8 @@ export default function Summary() {
               </div>
             </DndContext>
           </div>
-          <PinSheet open={adding} sensors={sensors} cards={cards} onAdd={add} onClose={() => setAdding(false)} />
-          <CardEditor card={editing} sensors={sensors} cards={cards} onSave={save} onClose={() => setEditing(null)} />
+          <PinSheet open={adding} sensors={sensors} devices={devices} cards={cards} onAdd={add} onClose={() => setAdding(false)} />
+          <CardEditor card={editing} sensors={sensors} devices={devices} cards={cards} onSave={save} onClose={() => setEditing(null)} />
         </>
       )}
     </>

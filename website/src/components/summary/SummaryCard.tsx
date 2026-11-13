@@ -1,14 +1,16 @@
 import { useDraggable } from '@dnd-kit/core';
-import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, MinusIcon, WarningCircleIcon } from '@phosphor-icons/react';
-import { type CSSProperties, type KeyboardEvent, useEffect, useState } from 'react';
+import { ArrowsInSimpleIcon, ArrowsOutSimpleIcon, BroadcastIcon, MinusIcon, WarningCircleIcon, WifiHighIcon } from '@phosphor-icons/react';
+import { type CSSProperties, type KeyboardEvent, type ReactNode, useEffect, useState } from 'react';
 import { cardHref, cardKey, cardValues, sparkKey } from '../../lib/cards';
-import { clockTime, formatNumber, unitText } from '../../lib/format';
+import { clockTime, formatNumber, timeAgo, unitText } from '../../lib/format';
 import { batteryLevel, hasBattery, lowBattery, metricStyle } from '../../lib/metrics';
 import type { Spot } from '../../lib/grid';
-import type { Card, Point, Sensor } from '../../lib/types';
+import { isOnline } from '../../lib/status';
+import { dbm, duration, kilobytes, signal } from '../../lib/telemetry';
+import type { Card, Device, Point, Sensor } from '../../lib/types';
 import { card as cardClass, pressable } from '../../lib/ui';
 import BatteryFill, { BatteryShape } from '../BatteryFill';
-import MetricChip from '../MetricChip';
+import MetricChip, { Chip } from '../MetricChip';
 import Sparkline from '../chart/Sparkline';
 import MetricValue from '../MetricValue';
 
@@ -17,9 +19,17 @@ export type Spark = { points: Point[]; start: number; end: number };
 // How far a moving card may go from its spot, in pixels.
 export type Bounds = { left: number; right: number; top: number; bottom: number };
 
+interface Temperature {
+  unit: string;
+  convert: (value: number) => number;
+}
+
 interface Props {
   card: Card;
   sensors: Sensor[];
+  devices: Device[];
+  // How a chip's temperature in °C shows, in the unit picked in Settings.
+  temperature: Temperature;
   sparks: Record<string, Spark>;
   now: number;
   editing: boolean;
@@ -65,9 +75,13 @@ export function DropOutline({ spot }: { spot: Spot }) {
   );
 }
 
-export const cardName = (card: Card, sensors: Sensor[]) => {
+export const cardName = (card: Card, sensors: Sensor[], devices: Device[]) => {
   if (card.type === 'batteries') {
     return 'Batteries';
+  }
+
+  if (card.type === 'source') {
+    return `${devices.find((device) => device.id === card.source)!.name} health`;
   }
 
   if (card.type === 'combined') {
@@ -99,7 +113,7 @@ const averageSpark = (sparks: (Spark | undefined)[]): Spark | undefined => {
   return { points, start: present[0].start, end: present[0].end };
 };
 
-function Header({ title, subtitle, time, large }: { title: string; subtitle?: string; time: string | null; large: boolean }) {
+function Header({ title, subtitle, time, large }: { title: string; subtitle?: ReactNode; time: string | null; large: boolean }) {
   return (
     <div className="flex items-start gap-2">
       <div className="min-w-0 flex-1">
@@ -123,7 +137,7 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
     .map((reading) => reading.measured_at)
     .sort()
     .at(-1);
-  const spark = card.type !== 'batteries' && card.graph ? averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)])) : undefined;
+  const spark = 'graph' in card && card.graph ? averageSpark(values.map(({ sensor, metric }) => sparks[sparkKey(sensor.id, metric.name)])) : undefined;
   const combined = card.type === 'combined';
   const unit = values[0]?.metric.unit ?? '';
 
@@ -317,16 +331,83 @@ function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteri
   );
 }
 
+// A source's health from its latest report: whether it's online, its Wi-Fi, uptime and free memory, and on a large card its chip temperature.
+function SourceBody({ device, large, now, temperature }: { device: Device; large: boolean; now: number; temperature: Temperature }) {
+  const telemetry = device.telemetry;
+  const online = isOnline(device, now);
+  const status = !device.active ? (
+    <span>Inactive</span>
+  ) : online ? (
+    <span className="text-good">Online</span>
+  ) : (
+    <span className="text-warning">{!device.last_seen_at ? 'Never connected' : large ? `Offline · ${timeAgo(device.last_seen_at, now)}` : 'Offline'}</span>
+  );
+  const rssi = telemetry?.rssi;
+  const wifi = rssi === undefined ? null : { ...signal(rssi), text: dbm(rssi) };
+  const stats = [
+    {
+      label: 'Wi-Fi',
+      value: wifi && (
+        <span className="flex items-center gap-1">
+          {/* The arcs a weaker signal doesn't reach show faintly, like the Wi-Fi icon in a phone's status bar. */}
+          <span role="img" aria-label={wifi.label} className="relative size-4 shrink-0">
+            <WifiHighIcon weight="bold" className="absolute inset-0 size-4 opacity-25" aria-hidden="true" />
+            <wifi.icon weight="bold" className="absolute inset-0 size-4" aria-hidden="true" />
+          </span>
+          {wifi.text}
+        </span>
+      ),
+    },
+    { label: 'Uptime', value: telemetry?.uptime !== undefined && duration(telemetry.uptime) },
+    { label: 'Memory', value: telemetry?.free_heap !== undefined && kilobytes(telemetry.free_heap) },
+    { label: 'Chip temperature', value: large && telemetry?.temperature !== undefined && `${formatNumber(temperature.convert(telemetry.temperature), 1)}${temperature.unit}` },
+  ].filter(({ value }) => value);
+
+  return (
+    <>
+      <div className={`flex items-start ${large ? 'gap-2.5' : 'gap-2'}`}>
+        <Chip icon={BroadcastIcon} color="var(--accent)" label="Source" small={!large} />
+        <div className="min-w-0 flex-1">
+          <Header title={device.name} subtitle={status} time={device.telemetry_at ? clockTime(device.telemetry_at, now) : null} large={large} />
+        </div>
+      </div>
+      {!stats.length ? (
+        <div className="mt-auto text-footnote text-muted">No reports yet</div>
+      ) : large ? (
+        <dl className="mt-auto grid grid-cols-2 gap-x-3 gap-y-1.5 pt-2">
+          {stats.map(({ label, value }) => (
+            <div key={label} className="min-w-0">
+              <dt className="truncate text-footnote text-muted">{label}</dt>
+              <dd className="truncate text-subheadline font-semibold tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <dl className="mt-auto flex flex-col gap-1.5 pt-3">
+          {stats.map(({ label, value }) => (
+            <div key={label} className="flex min-w-0 items-baseline gap-2">
+              <dt className="min-w-0 flex-1 truncate text-footnote text-muted">{label}</dt>
+              <dd className="shrink-0 text-subheadline font-semibold tabular-nums">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
+    </>
+  );
+}
+
 export default function SummaryCard(props: Props) {
-  const { card, sensors, editing, leaving = false, spot, bounds, onRemove, onResize, onEdit } = props;
+  const { card, sensors, devices, editing, leaving = false, spot, bounds, onRemove, onResize, onEdit } = props;
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: cardKey(card), disabled: !editing || leaving });
-  const name = cardName(card, sensors);
+  const name = cardName(card, sensors, devices);
   const settled = useSettled();
   // The card stays on the grid, so dragging it to an edge never makes the page wider or longer.
   const shift = transform && bounds ? { ...transform, x: Math.min(Math.max(transform.x, bounds.left), bounds.right), y: Math.min(Math.max(transform.y, bounds.top), bounds.bottom) } : transform;
   const battery = card.type === 'batteries' && card.sensors.length === 1 ? sensors.find((item) => item.id === card.sensors[0] && hasBattery(item)) : undefined;
   const body = battery ? (
     <BatteryBody sensor={battery} large={card.size === 'large'} now={props.now} />
+  ) : card.type === 'source' ? (
+    <SourceBody device={devices.find((device) => device.id === card.source)!} large={card.size === 'large'} now={props.now} temperature={props.temperature} />
   ) : card.type === 'sensor' ? (
     <SensorBody {...props} />
   ) : card.type === 'batteries' ? (

@@ -81,6 +81,7 @@ export type Card = CardBase &
     | { type: 'sensor'; sensor: number; metric: null; metrics: string[]; graph: boolean }
     | { type: 'combined'; sensor: null; metric: string; sensors: number[]; graph: boolean }
     | { type: 'batteries'; sensor: null; metric: null; sensors: number[] }
+    | { type: 'source'; sensor: null; metric: null; source: number }
   );
 
 export interface Passkey {

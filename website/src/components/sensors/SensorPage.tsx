@@ -35,7 +35,7 @@ export default function SensorPage({ params }: { params: Params }) {
       api<{ decoders: Option[] }>('/decoders'),
       api<{ sinks: Option[] }>('/sinks'),
     ]);
-    return { sensors, devices, decoders, sinks, pins: await loadPins(sensors) };
+    return { sensors, devices, decoders, sinks, pins: await loadPins(sensors, devices) };
   });
   const [pins, setPins] = useState<Card[] | null>(null);
   const [chosen, setChosen] = useState(params.metric);

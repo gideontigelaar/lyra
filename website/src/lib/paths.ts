@@ -12,7 +12,7 @@ export const sensorPath = (id: number, metric?: string, prefix = tabPrefix()) =>
 
 export const dataPath = (id: number, metric: string, date?: string) => `${sensorPath(id, metric)}data/${date ? `${date}/` : ''}`;
 
-export const sourcePath = (id: number) => `${tabPrefix()}/sources/${id}/`;
+export const sourcePath = (id: number, prefix = tabPrefix()) => `${prefix}/sources/${id}/`;
 
 export const averagePath = (metric: string, sensors: number[]) => `${SUMMARY}/average/${encodeURIComponent(metric)}/${sensors.join('-')}/`;
 

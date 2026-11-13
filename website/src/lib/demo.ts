@@ -114,6 +114,7 @@ let dashboard: unknown = [
   { type: 'metric', size: 'small', sensor: 4, metric: 'temperature' },
   { type: 'metric', size: 'small', sensor: 4, metric: 'humidity' },
   { type: 'batteries', size: 'large', sensor: null, metric: null, sensors: [1, 2, 3, 4] },
+  { type: 'source', size: 'large', sensor: null, metric: null, source: 1 },
 ];
 let settings = { temperature_unit: 'celsius', time_zone: null };
 let passkeys = [

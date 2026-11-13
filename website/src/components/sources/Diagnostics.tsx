@@ -1,4 +1,5 @@
 import { formatNumber, timeAgo } from '../../lib/format';
+import { dbm, duration, kilobytes, restartReason, signal } from '../../lib/telemetry';
 import type { Device } from '../../lib/types';
 import Fold from '../ui/Fold';
 import { Row, Section } from '../ui/List';
@@ -9,36 +10,6 @@ interface Props {
   now: number;
 }
 
-const REASONS: Record<string, string> = {
-  unknown: 'Unknown',
-  power_on: 'Power on',
-  external: 'Reset pin',
-  software: 'Restarted by the firmware',
-  panic: 'Crash',
-  interrupt_watchdog: 'Watchdog (interrupt)',
-  task_watchdog: 'Watchdog (task)',
-  watchdog: 'Watchdog',
-  deep_sleep: 'Woke from deep sleep',
-  brownout: 'Brownout (low voltage)',
-  sdio: 'SDIO',
-  usb: 'USB',
-  jtag: 'JTAG',
-  efuse: 'eFuse error',
-  power_glitch: 'Power glitch',
-  cpu_lockup: 'CPU lockup',
-};
-
-const duration = (seconds: number) => {
-  const days = Math.floor(seconds / 86400);
-  const hours = Math.floor((seconds % 86400) / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  return days ? `${days} d ${hours} h` : hours ? `${hours} h ${minutes} min` : `${minutes} min`;
-};
-
-const kilobytes = (bytes: number) => `${formatNumber(bytes / 1024, 0)} KB`;
-
-const signal = (rssi: number) => `${rssi >= -60 ? 'Strong' : rssi >= -70 ? 'Good' : rssi >= -80 ? 'Weak' : 'Very weak'} (${rssi} dBm)`;
-
 export default function Diagnostics({ device, temperature, now }: Props) {
   const telemetry = device.telemetry;
   const rows: [string, string | undefined][] = telemetry
@@ -46,8 +17,8 @@ export default function Diagnostics({ device, temperature, now }: Props) {
         ['Last report', device.telemetry_at ? timeAgo(device.telemetry_at, now) : undefined],
         ['Uptime', telemetry.uptime === undefined ? undefined : duration(telemetry.uptime)],
         ['Boot count', telemetry.boots?.toString()],
-        ['Last restart', telemetry.reset_reason && (REASONS[telemetry.reset_reason] ?? telemetry.reset_reason)],
-        ['Wi-Fi signal', telemetry.rssi === undefined ? undefined : signal(telemetry.rssi)],
+        ['Last restart', telemetry.reset_reason && restartReason(telemetry.reset_reason)],
+        ['Wi-Fi signal', telemetry.rssi === undefined ? undefined : `${signal(telemetry.rssi).label} (${dbm(telemetry.rssi)})`],
         ['Wi-Fi reconnects', telemetry.wifi_reconnects?.toString()],
         ['Free memory', telemetry.free_heap === undefined ? undefined : kilobytes(telemetry.free_heap)],
         ['Lowest free memory', telemetry.min_free_heap === undefined ? undefined : kilobytes(telemetry.min_free_heap)],

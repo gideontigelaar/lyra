@@ -1,23 +1,24 @@
-import { ArrowsMergeIcon, CaretLeftIcon } from '@phosphor-icons/react';
+import { ArrowsMergeIcon, BroadcastIcon, CaretLeftIcon } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { MAX_PER_CARD, canCombine } from '../../lib/cards';
 import { formatNumber, unitText } from '../../lib/format';
 import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
-import type { Card, Sensor } from '../../lib/types';
+import type { Card, Device, Sensor } from '../../lib/types';
 import { appear, group, pressable, sectionTitle, wideSecondaryButton } from '../../lib/ui';
 import { Chip } from '../MetricChip';
 import Dialog from '../ui/Dialog';
-import { AverageForm, BatteriesForm, ValuesForm } from './CardForms';
+import { AverageForm, BatteriesForm, SourceForm, ValuesForm } from './CardForms';
 
 interface Props {
   open: boolean;
   sensors: Sensor[];
+  devices: Device[];
   cards: Card[];
   onAdd: (card: Card) => void;
   onClose: () => void;
 }
 
-type View = { kind: 'home' } | { kind: 'sensor'; id: number } | { kind: 'average' } | { kind: 'batteries' };
+type View = { kind: 'home' } | { kind: 'sensor'; id: number } | { kind: 'average' } | { kind: 'batteries' } | { kind: 'source' };
 
 const tile = `${group} ${pressable} flex min-h-24 w-full flex-1 flex-col items-start gap-2 p-3 text-left`;
 
@@ -37,11 +38,11 @@ function Back({ label, onClick }: { label: string; onClick: () => void }) {
   );
 }
 
-export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props) {
+export default function PinSheet({ open, sensors, devices, cards, onAdd, onClose }: Props) {
   const [view, setView] = useState<View>({ kind: 'home' });
   const sensor = view.kind === 'sensor' ? sensors.find((item) => item.id === view.id) : undefined;
   const combinable = sensors.flatMap((item) => item.metrics.map((metric) => metric.name)).some((name, _, all) => canCombine(name) && all.filter((other) => other === name).length > 1);
-  const titles = { home: 'Add to Summary', average: 'Average card', batteries: 'Batteries card' };
+  const titles = { home: 'Add to Summary', average: 'Average card', batteries: 'Batteries card', source: 'Health card' };
   const batteries = sensors.some(hasBattery);
   const close = () => {
     setView({ kind: 'home' });
@@ -78,37 +79,38 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
       </button>
     ),
   ].filter(Boolean);
-  const side = sensorTiles.length === 1 && acrossTiles.length === 1;
+  const sourceTiles = devices.length
+    ? [
+        <button key="source" type="button" className={tile} onClick={() => setView({ kind: 'source' })}>
+          <span className="flex items-center gap-2 text-body font-semibold">
+            <Chip icon={BroadcastIcon} color="var(--accent)" small />
+            Health
+          </span>
+          <span className="text-footnote text-muted">Status and Wi-Fi of a source</span>
+        </button>,
+      ]
+    : [];
+  const sections = [
+    { title: 'Sensors', tiles: sensorTiles },
+    { title: 'Across sensors', tiles: acrossTiles },
+    { title: 'Sources', tiles: sourceTiles },
+  ].filter(({ tiles }) => tiles.length);
 
   return (
     <Dialog open={open} title={sensor ? sensor.name : titles[view.kind as keyof typeof titles]} onClose={close}>
       <div key={view.kind} className={appear}>
         {view.kind !== 'home' && <Back label="All cards" onClick={() => setView({ kind: 'home' })} />}
-        {view.kind === 'home' &&
-          // With one tile in each section, the two sections sit side by side.
-          (side ? (
-            <div className="grid grid-cols-2 gap-3">
-              <section className="flex flex-col">
-                <h3 className={heading}>Sensors</h3>
-                {sensorTiles}
+        {view.kind === 'home' && (
+          // A section with one tile takes half the width, so two of them sit side by side.
+          <div className="grid grid-cols-2 gap-x-3 gap-y-5">
+            {sections.map(({ title, tiles }) => (
+              <section key={title} className={`flex flex-col ${tiles.length > 1 ? 'col-span-2' : ''}`}>
+                <h3 className={heading}>{title}</h3>
+                <div className={tiles.length > 1 ? 'grid grid-cols-2 gap-3' : 'flex flex-1'}>{tiles}</div>
               </section>
-              <section className="flex flex-col">
-                <h3 className={heading}>Across sensors</h3>
-                {acrossTiles}
-              </section>
-            </div>
-          ) : (
-            <>
-              <h3 className={heading}>Sensors</h3>
-              <div className="grid grid-cols-2 gap-3">{sensorTiles}</div>
-              {acrossTiles.length > 0 && (
-                <>
-                  <h3 className={`${heading} mt-5`}>Across sensors</h3>
-                  <div className="grid grid-cols-2 gap-3">{acrossTiles}</div>
-                </>
-              )}
-            </>
-          ))}
+            ))}
+          </div>
+        )}
         {view.kind === 'home' && (
           <button type="button" className={`${wideSecondaryButton} mt-6`} onClick={close}>
             Cancel
@@ -117,6 +119,7 @@ export default function PinSheet({ open, sensors, cards, onAdd, onClose }: Props
         {view.kind === 'sensor' && sensor && <ValuesForm sensor={sensor} cards={cards} onSubmit={add} />}
         {view.kind === 'average' && <AverageForm sensors={sensors} cards={cards} onSubmit={add} />}
         {view.kind === 'batteries' && <BatteriesForm sensors={sensors} cards={cards} onSubmit={add} />}
+        {view.kind === 'source' && <SourceForm devices={devices} cards={cards} onSubmit={add} />}
       </div>
     </Dialog>
   );
