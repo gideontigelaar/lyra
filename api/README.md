@@ -76,8 +76,7 @@ Takes the sensor broadcasts the boards relay, decodes them, stores the readings 
        value       DOUBLE            NOT NULL,
        measured_at TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
        PRIMARY KEY (sensor_id, metric_id, measured_at),
-       FOREIGN KEY (sensor_id) REFERENCES sensors (sensor_id) ON DELETE CASCADE,
-       FOREIGN KEY (metric_id) REFERENCES metrics (metric_id)
+       FOREIGN KEY (sensor_id, metric_id) REFERENCES sensor_metrics (sensor_id, metric_id) ON DELETE CASCADE
    );
 
    CREATE TABLE users (

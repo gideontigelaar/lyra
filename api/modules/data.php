@@ -74,6 +74,11 @@ function list_readings(): never
         respond(400, ['error' => 'unknown time zone']);
     }
 
+    // Buckets follow the zone's changes to and from summer time. An offset like +02:00 has none to follow.
+    if ($zone->getTransitions($start, $end) === false) {
+        respond(400, ['error' => 'tz must be a named time zone, like Europe/Amsterdam']);
+    }
+
     respond(200, [
         'unit' => $row['unit'],
         'bucket' => $bucket,

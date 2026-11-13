@@ -18,6 +18,7 @@ use Webauthn\PublicKeyCredential;
 
 const PASSKEY_ALGORITHMS = [EdDSA::class, ES256::class, RS256::class];
 const CHALLENGE_SECONDS = 300;
+const MAX_CHALLENGES = 50;
 
 function webauthn_rp_id(): string
 {
@@ -63,6 +64,13 @@ function create_challenge(PDO $db, ?int $user_id): string
     $challenge = random_bytes(32);
 
     $db->exec('DELETE FROM challenges WHERE expires_at <= CURRENT_TIMESTAMP');
+
+    // Anyone can ask for a challenge to sign in with, so only so many can wait at once.
+    if ($db->query('SELECT COUNT(*) FROM challenges')->fetchColumn() >= MAX_CHALLENGES) {
+        header('Retry-After: ' . CHALLENGE_SECONDS);
+        respond(429, ['error' => 'too many sign-in attempts, try again in a few minutes']);
+    }
+
     $db->prepare('INSERT INTO challenges (challenge_hash, user_id, expires_at) VALUES (?, ?, CURRENT_TIMESTAMP + INTERVAL ? SECOND)')
         ->execute([hash('sha256', $challenge), $user_id, CHALLENGE_SECONDS]);
 
