@@ -166,9 +166,9 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
   const spark = 'graph' in card && card.graph ? averaged : undefined;
   const combined = card.type === 'combined';
   const unit = values[0]?.metric.unit ?? '';
-  // A value card's high and low are its readings', an average's those of the average.
-  const detail = card.type === 'metric' || card.type === 'combined' ? card.detail : null;
-  const range = detail === 'range' && rangeOf((card.type === 'metric' ? sparks[sparkKey(card.sensor, name)] : averaged)?.points ?? []);
+  // A value card's high and low are those of its readings.
+  const detail = card.type === 'metric' ? card.detail : null;
+  const range = detail === 'range' && card.type === 'metric' && rangeOf(sparks[sparkKey(card.sensor, name)]?.points ?? []);
   // The dew point is in the sensor's temperature unit.
   const sensor = values[0]?.sensor;
   const dewPoint = detail === 'dew_point' && sensor?.dewPoint != null ? brief(sensor.dewPoint, 'dew_point', sensor.metrics.find((metric) => metric.name === 'temperature')?.unit ?? '°C') : null;

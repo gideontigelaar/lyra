@@ -108,13 +108,15 @@ const sensors: DemoSensor[] = [
 const deleted = new Map<string, { from: number; to: number }[]>();
 // Readings added from a backup, per sensor and value.
 const imported = new Map<string, { time: number; value: number }[]>();
+// One of each kind of card: a sensor with graphs, the batteries, the balcony's values with a line under them, averages and a source.
 let dashboard: unknown = [
-  { type: 'combined', size: 'large', sensor: null, metric: 'temperature', sensors: [2, 3] },
-  { type: 'sensor', size: 'large', sensor: 1, metric: null },
-  { type: 'metric', size: 'small', sensor: 4, metric: 'temperature' },
-  { type: 'metric', size: 'small', sensor: 4, metric: 'humidity' },
+  { type: 'sensor', size: 'large', sensor: 1, metric: null, metrics: ['temperature', 'humidity'], graph: true },
   { type: 'batteries', size: 'large', sensor: null, metric: null, sensors: [1, 2, 3, 4], left: true },
+  { type: 'metric', size: 'small', sensor: 4, metric: 'temperature', graph: false, detail: 'range' },
+  { type: 'metric', size: 'small', sensor: 4, metric: 'humidity', graph: false, detail: 'dew_point' },
+  { type: 'combined', size: 'large', sensor: null, metric: 'temperature', sensors: [2, 3], graph: true },
   { type: 'source', size: 'large', sensor: null, metric: null, source: 1 },
+  { type: 'combined', size: 'large', sensor: null, metric: 'humidity', sensors: [2, 3], graph: true },
 ];
 let settings = { temperature_unit: 'celsius', time_zone: null };
 let passkeys = [

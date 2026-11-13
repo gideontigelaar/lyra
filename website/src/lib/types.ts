@@ -100,7 +100,7 @@ export type Card = CardBase &
   (
     | { type: 'metric'; sensor: number; metric: string; graph: boolean; detail: Detail | null }
     | { type: 'sensor'; sensor: number; metric: null; metrics: string[]; graph: boolean }
-    | { type: 'combined'; sensor: null; metric: string; sensors: number[]; graph: boolean; detail: Detail | null }
+    | { type: 'combined'; sensor: null; metric: string; sensors: number[]; graph: boolean }
     // left: a card of one battery says roughly how long it has left.
     | { type: 'batteries'; sensor: null; metric: null; sensors: number[]; left: boolean }
     | { type: 'source'; sensor: null; metric: null; source: number }

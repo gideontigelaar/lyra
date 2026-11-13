@@ -182,10 +182,9 @@ export function AverageForm({ sensors, ...props }: FormProps & { sensors: Sensor
   const [metric, setMetric] = useState(edited?.metric ?? metrics[0]);
   const [chosen, setChosen] = useState<number[]>(edited?.sensors ?? []);
   const [graph, setGraph] = useState(edited?.graph ?? true);
-  const [detail, setDetail] = useState(edited?.detail ?? null);
   const options = sensors.filter((sensor) => sensor.metrics.some((item) => item.name === metric));
   const picked = chosen.filter((id) => options.some((sensor) => sensor.id === id));
-  const card: Card = { size: 'large', ...edited, type: 'combined', sensor: null, metric, sensors: picked, graph, detail };
+  const card: Card = { size: 'large', ...edited, type: 'combined', sensor: null, metric, sensors: picked, graph };
 
   return (
     <Group
@@ -205,12 +204,7 @@ export function AverageForm({ sensors, ...props }: FormProps & { sensors: Sensor
           </div>
         </>
       }
-      after={
-        <>
-          <GraphSwitch checked={graph} onChange={setGraph} />
-          <DetailPicker options={detailsFor(metric)} value={detail} onChange={setDetail} />
-        </>
-      }
+      after={<GraphSwitch checked={graph} onChange={setGraph} />}
     />
   );
 }

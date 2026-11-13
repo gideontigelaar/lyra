@@ -108,8 +108,8 @@ const members = (ids: unknown, metric: string, min: number, max: number, sensors
   return list.length >= min ? list : null;
 };
 
-// A high and low go with any value, also an average. The dew point only goes with the humidity, like on a sensor's page,
-// so a card that had it under its temperature shows nothing there instead.
+// A value card can show the high and low of its value. The dew point only goes with the humidity, like on a sensor's page,
+// so a card that had it under its temperature shows nothing there instead. An average shows how far apart its sensors are, so it has neither.
 export const detailsFor = (metric: string, sensor?: Sensor): Detail[] => (sensor && hasDewPoint(sensor) && metric === 'humidity' ? ['range', 'dew_point'] : ['range']);
 
 const toCard = (
@@ -132,7 +132,7 @@ const toCard = (
     }
     case 'combined': {
       const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, 2, MAX_PER_CARD.combined, sensors) : null;
-      return list && { type, size, sensor: null, metric: metric as string, sensors: list, graph, detail: line === 'range' ? line : null };
+      return list && { type, size, sensor: null, metric: metric as string, sensors: list, graph };
     }
     case 'sensor': {
       const found = sensors.find((item) => item.id === sensor);
