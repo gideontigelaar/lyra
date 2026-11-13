@@ -1,6 +1,6 @@
 import { CheckIcon, PlusIcon } from '@phosphor-icons/react';
 import { type ReactNode, useState } from 'react';
-import { MAX_PER_CARD, canCombine, cardKey, fitValues, valueLimit } from '../../lib/cards';
+import { MAX_PER_CARD, batteryLimit, canCombine, cardKey, fitValues, valueLimit } from '../../lib/cards';
 import { hasBattery, mainMetrics, metricStyle } from '../../lib/metrics';
 import type { Card, Device, Sensor } from '../../lib/types';
 import { group, placeholder, row, sectionTitle, widePrimaryButton } from '../../lib/ui';
@@ -191,6 +191,7 @@ export function BatteriesForm({ sensors, ...props }: FormProps & { sensors: Sens
   const options = sensors.filter(hasBattery);
   const [picked, setPicked] = useState(() => edited?.sensors ?? options.slice(0, MAX_PER_CARD.batteries).map((sensor) => sensor.id));
   const card: Card = { size: 'large', ...edited, type: 'batteries', sensor: null, metric: null, sensors: picked };
+  const max = edited ? batteryLimit(edited.size) : MAX_PER_CARD.batteries;
 
   return (
     <Group
@@ -199,10 +200,11 @@ export function BatteriesForm({ sensors, ...props }: FormProps & { sensors: Sens
       what="sensors"
       options={sensorOptions(options)}
       min={1}
-      max={MAX_PER_CARD.batteries}
+      max={max}
       picked={picked}
       onPick={setPicked}
       card={card}
+      note={edited?.size === 'small' ? `A small card fits ${max}. Enlarge it for up to ${MAX_PER_CARD.batteries}.` : undefined}
     />
   );
 }

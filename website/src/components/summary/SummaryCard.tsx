@@ -185,9 +185,9 @@ function ValueBody({ card, sensors, sparks, now }: Props) {
   );
 }
 
-// Values fill the card in balanced rows: up to 3 side by side, more in two rows on a large card, pairs on a small one.
+// Values fill a large card side by side, 4 in two rows, and a small one each in a row of its own.
 const rowsOf = <T,>(items: T[], large: boolean) => {
-  const perRow = large ? (items.length <= 3 ? items.length : Math.ceil(items.length / 2)) : items.length <= 3 ? 1 : 2;
+  const perRow = large ? (items.length === 4 ? 2 : items.length) : 1;
   return Array.from({ length: Math.ceil(items.length / perRow) }, (_, i) => items.slice(i * perRow, (i + 1) * perRow));
 };
 
@@ -280,8 +280,6 @@ function SensorBody({ card, sensors, sparks, now }: Props) {
   );
 }
 
-const BATTERY_ROWS = 3;
-
 // One battery: its level large, over a bar as wide as the card. Batteries change too slowly for a graph to say anything.
 function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; now: number }) {
   const level = batteryLevel(sensor);
@@ -311,25 +309,22 @@ function BatteryBody({ sensor, large, now }: { sensor: Sensor; large: boolean; n
   );
 }
 
-// Lowest first, in one column with bars when they fit. A large card that's wide, so tall, enough fits 4, more go in two columns.
+// Lowest first, in one column, with bars on a large card. 4 only fit in one column on a card that's wide, so tall, enough, else they go in two without bars.
 function BatteriesBody({ card, sensors }: { card: Extract<Card, { type: 'batteries' }>; sensors: Sensor[] }) {
   const large = card.size === 'large';
-  const all = sensors
+  const list = sensors
     .filter((sensor) => card.sensors.includes(sensor.id) && hasBattery(sensor))
     .map((sensor) => ({ sensor, level: batteryLevel(sensor), low: lowBattery(sensor) !== null }))
     .sort((a, b) => (a.level ?? Infinity) - (b.level ?? Infinity));
-  const list = large ? all : all.slice(0, BATTERY_ROWS);
-  const hidden = all.length - list.length;
-  const layout =
-    !large || list.length <= BATTERY_ROWS ? 'flex flex-col' : list.length === 4 ? 'grid grid-flow-col grid-rows-2 @[24rem]/card:flex @[24rem]/card:flex-col' : 'grid grid-flow-col grid-rows-3';
-  const bars = !large ? 'hidden' : list.length <= BATTERY_ROWS ? '' : list.length === 4 ? 'hidden @[24rem]/card:block' : 'hidden';
+  const four = large && list.length > 3;
+  const layout = four ? 'grid grid-flow-col grid-rows-2 @[24rem]/card:flex @[24rem]/card:flex-col' : 'flex flex-col';
+  const bars = !large ? 'hidden' : four ? 'hidden @[24rem]/card:block' : '';
 
   return (
     <>
       <div className={`flex items-center ${large ? 'gap-2.5' : 'gap-2'}`}>
         <MetricChip metric="battery" small={!large} />
         <span className="min-w-0 flex-1 truncate text-subheadline font-semibold">Batteries</span>
-        {hidden > 0 && <span className="shrink-0 text-footnote text-muted">+{hidden}</span>}
       </div>
       <ul className={`mt-auto gap-x-6 gap-y-1.5 pt-3 ${layout}`}>
         {list.map(({ sensor, level, low }) => (

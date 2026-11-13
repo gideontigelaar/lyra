@@ -2,7 +2,7 @@ import { DndContext, type DragMoveEvent, type DragStartEvent, type KeyboardCoord
 import { ArrowUUpLeftIcon, ArrowUUpRightIcon, PlusIcon } from '@phosphor-icons/react';
 import { type CSSProperties, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { api } from '../../lib/api';
-import { cardKey, cardValues, defaultCards, fitValues, sparkKey, toCards, valueLimit } from '../../lib/cards';
+import { batteryLimit, cardKey, cardValues, defaultCards, fitBatteries, fitValues, sparkKey, toCards, valueLimit } from '../../lib/cards';
 import { type Columns, type Spot, dropOrder, layoutOf, rowsOf } from '../../lib/grid';
 import { failure, useLoad } from '../../lib/load';
 import { fetchPoints } from '../../lib/readings';
@@ -219,7 +219,7 @@ export default function Summary() {
     setTimeout(() => setLeaving((list) => list.filter((item) => item.card !== card)), 300);
   };
 
-  // A sensor card that gets smaller keeps the values that fit, from the left.
+  // A card that gets smaller keeps what fits, as it shows first: a sensor card its values from the left, a batteries card its lowest batteries.
   const resizeCard = (card: Card) =>
     change(
       cards.map((item) => {
@@ -228,8 +228,12 @@ export default function Summary() {
         }
 
         const size = item.size === 'small' ? 'large' : 'small';
-        const limit = item.type === 'sensor' ? valueLimit(size, item.graph) : Infinity;
-        return item.type === 'sensor' && item.metrics.length > limit ? { ...item, size, metrics: fitValues(item.metrics, limit) } : { ...item, size };
+
+        if (item.type === 'sensor') {
+          return { ...item, size, metrics: fitValues(item.metrics, valueLimit(size, item.graph)) };
+        }
+
+        return item.type === 'batteries' ? { ...item, size, sensors: fitBatteries(item.sensors, batteryLimit(size), sensors) } : { ...item, size };
       }),
     );
 

@@ -1,9 +1,12 @@
-import { hasBattery, mainMetrics, metricStyle } from './metrics';
+import { batteryLevel, hasBattery, mainMetrics, metricStyle } from './metrics';
 import { SUMMARY, averagePath, batteriesPath, sensorPath, sourcePath } from './paths';
 import type { Card, Device, Sensor, SensorMetric } from './types';
 
-// The most a card holds: values on a sensor card, sensors on a batteries or combined card.
-export const MAX_PER_CARD = { sensor: 6, batteries: 6, combined: 3 };
+// The most a large card holds: values on a sensor card, sensors on a batteries card. A small card holds 3.
+// An average is one value, over up to 3 sensors on a card of either size.
+export const MAX_PER_CARD = { sensor: 4, batteries: 4, combined: 3 };
+
+const SMALL_CARD = 3;
 
 const joined = (list: (number | string)[]) => [...list].sort().join('+');
 
@@ -22,7 +25,17 @@ export const cardKey = (card: Card) => {
 };
 
 // How many values a sensor card holds. A small card has room for 3 under each other, or 2 with their graphs.
-export const valueLimit = (size: Card['size'], graph: boolean) => (size === 'large' ? MAX_PER_CARD.sensor : graph ? 2 : 3);
+export const valueLimit = (size: Card['size'], graph: boolean) => (size === 'large' ? MAX_PER_CARD.sensor : graph ? 2 : SMALL_CARD);
+
+// How many sensors a batteries card holds.
+export const batteryLimit = (size: Card['size']) => (size === 'large' ? MAX_PER_CARD.batteries : SMALL_CARD);
+
+// The batteries a card keeps when it has less room: the lowest, as they show from the top.
+export const fitBatteries = (ids: number[], limit: number, sensors: Sensor[]) => {
+  const level = (id: number) => batteryLevel(sensors.find((sensor) => sensor.id === id)!) ?? Infinity;
+  const kept = new Set([...ids].sort((a, b) => level(a) - level(b)).slice(0, limit));
+  return ids.filter((id) => kept.has(id));
+};
 
 // The values a sensor card keeps when it has less room: the first ones, as they show from left to right.
 export const fitValues = (names: string[], limit: number) =>
@@ -104,8 +117,8 @@ const toCard = ({ type, size, sensor, metric, sensors: ids, metrics: names, grap
   switch (type) {
     case 'batteries': {
       // Batteries cards saved before sensors could be picked showed every battery.
-      const list = members(ids ?? sensors.filter(hasBattery).map((item) => item.id), 'battery', 1, MAX_PER_CARD.batteries, sensors);
-      return list && { type, size, sensor: null, metric: null, sensors: list };
+      const list = members(ids ?? sensors.filter(hasBattery).map((item) => item.id), 'battery', 1, Infinity, sensors);
+      return list && { type, size, sensor: null, metric: null, sensors: fitBatteries(list, batteryLimit(size), sensors) };
     }
     case 'combined': {
       const list = typeof metric === 'string' && canCombine(metric) ? members(ids, metric, 2, MAX_PER_CARD.combined, sensors) : null;
