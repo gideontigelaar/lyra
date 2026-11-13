@@ -238,7 +238,7 @@ Body of `POST /lyra/device/telemetry`, every field optional:
 
 Response of `GET /lyra/readings?sensor=1&metric=temperature&from=2026-11-04T23:00:00Z&to=2026-11-11T23:00:00Z&tz=Europe/Amsterdam&bucket=day`:
 ```json
-{"unit": "°C", "bucket": "day", "readings": [{"time": "2026-11-04T23:00:00Z", "avg": 21.42, "min": 20.9, "max": 22.1}]}
+{"unit": "°C", "bucket": "day", "readings": [{"time": "2026-11-04T23:00:00Z", "avg": 21.42, "min": 20.9, "max": 22.1}], "before": {"time": "2026-11-03T23:00:00Z", "avg": 21.1, "min": 20.6, "max": 21.8}, "after": null}
 ```
 
 Body of `DELETE /lyra/readings`:
@@ -265,7 +265,7 @@ Response:
 - A source only relays its own sensors. Values missing from the `metrics` table are ignored, so a new kind of value only needs a row there.
 - A value is stored once its interval has passed since the last one, with 10% leeway. `age` is how many seconds ago the source heard the broadcast, up to 7 days, so late broadcasts still get the right time.
 - Only a source's latest telemetry is kept, and unknown fields are ignored, so newer firmware keeps working. Memory is in bytes, `uptime` in seconds, `temperature` is the chip's in °C, and `pending` and `dropped` count broadcasts waiting in or dropped from the queue.
-- `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, which defaults to UTC.
+- `bucket` is `raw` (single readings, up to 31 days), `hour` (up to 31 days), `day` (up to 400 days), `week` (from Monday, up to 1100 days) or `month` (up to 3700 days). Buckets follow the local time of `tz`, which defaults to UTC. `before` and `after` are the bucket of the nearest reading before and after the range, however far away, or `null`, so a chart's line can carry on to its edges and across gaps.
 - A backup has the columns `time`, `metric`, `value` and `unit`, in the units readings are stored in, with a byte order mark so Excel reads it as UTF-8. Importing skips readings that are stored already, or that are within a minute of a stored reading of the same value, so a backup that overlaps what's there only adds what's missing. A value the sensor didn't have yet is added to it, and readings with an unknown value, another unit or a time in the future count as invalid. A request takes up to 5000 readings, the website sends a backup in parts.
 - Summary cards are stored as the website sends them. The API only checks that there are at most 100 and that each has a `type`, so new card types need no API change.
 - Temperatures are stored in °C, `temperature_unit` only changes what the website shows.

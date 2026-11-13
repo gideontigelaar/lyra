@@ -4,8 +4,8 @@ import { formatNumber, unitText } from '../../lib/format';
 import { failure } from '../../lib/load';
 import { LOW_BATTERY, metricStyle } from '../../lib/metrics';
 import { type PeriodId, PERIODS, isPeriod, periods } from '../../lib/periods';
-import { averagePoints, fetchPoints, rangeOf } from '../../lib/readings';
-import type { Point, SensorMetric } from '../../lib/types';
+import { type Series, averageSeries, fetchSeries, rangeOf } from '../../lib/readings';
+import type { SensorMetric } from '../../lib/types';
 import { iconButton, sectionTitle } from '../../lib/ui';
 import RangeChart from '../chart/RangeChart';
 import Message from '../ui/Message';
@@ -16,8 +16,6 @@ interface Props {
   sensors: number[];
   metric: Pick<SensorMetric, 'name' | 'unit'>;
 }
-
-const HOUR = 3600000;
 
 const storedPeriod = (): PeriodId => {
   try {
@@ -32,7 +30,7 @@ export default function MetricChart({ sensors, metric }: Props) {
   const style = metricStyle(metric.name);
   const [period, setPeriod] = useState(storedPeriod);
   const [start, setStart] = useState(() => periods[storedPeriod()].start(new Date()));
-  const [loaded, setLoaded] = useState<{ key: string; points: Point[]; before?: Point; after?: Point } | null>(null);
+  const [loaded, setLoaded] = useState<(Series & { key: string }) | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const config = periods[period];
@@ -47,20 +45,12 @@ export default function MetricChart({ sensors, metric }: Props) {
     let current = true;
     setSelected(null);
 
-    // One bucket on each side, so the line can continue to the chart's edges.
-    const margin = { raw: 3 * HOUR, hour: HOUR, day: 25 * HOUR, week: 8 * 24 * HOUR, month: 32 * 24 * HOUR }[config.bucket];
-
-    Promise.all(sensors.map((sensor) => fetchPoints(sensor, metric.name, start.getTime() - margin, end.getTime() + margin, config.bucket)))
-      .then(averagePoints)
+    Promise.all(sensors.map((sensor) => fetchSeries(sensor, metric.name, start.getTime(), end.getTime(), config.bucket)))
+      .then(averageSeries)
       .then(
-        (result) => {
+        (series) => {
           if (current) {
-            setLoaded({
-              key,
-              points: result.filter((point) => point.time >= start.getTime() && point.time < end.getTime()),
-              before: result.findLast((point) => point.time < start.getTime()),
-              after: result.find((point) => point.time >= end.getTime()),
-            });
+            setLoaded({ key, ...series });
             setError(null);
           }
         },

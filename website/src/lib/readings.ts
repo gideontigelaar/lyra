@@ -1,9 +1,16 @@
 import { api } from './api';
-import type { Bucketing, Point, ReadingsResponse } from './types';
+import type { Bucketing, Point, Reading, ReadingsResponse } from './types';
 import { displayUnit } from './units';
 import { timeZone } from './zone';
 
-export const fetchPoints = async (sensor: number, metric: string, from: number, to: number, bucket: Bucketing): Promise<Point[]> => {
+// The points of a range, and the nearest ones on each side of it.
+export interface Series {
+  points: Point[];
+  before?: Point;
+  after?: Point;
+}
+
+export const fetchSeries = async (sensor: number, metric: string, from: number, to: number, bucket: Bucketing): Promise<Series> => {
   const query = new URLSearchParams({
     sensor: String(sensor),
     metric,
@@ -12,15 +19,17 @@ export const fetchPoints = async (sensor: number, metric: string, from: number, 
     tz: timeZone(),
     bucket,
   });
-  const { unit, readings } = await api<ReadingsResponse>(`/readings?${query}`);
+  const { unit, readings, before, after } = await api<ReadingsResponse>(`/readings?${query}`);
   const { convert } = await displayUnit(unit);
-
-  return readings.map((reading) =>
+  const point = (reading: Reading): Point =>
     'value' in reading
       ? { time: Date.parse(reading.time), min: convert(reading.value), max: convert(reading.value), avg: convert(reading.value) }
-      : { time: Date.parse(reading.time), min: convert(reading.min), max: convert(reading.max), avg: convert(reading.avg) },
-  );
+      : { time: Date.parse(reading.time), min: convert(reading.min), max: convert(reading.max), avg: convert(reading.avg) };
+
+  return { points: readings.map(point), before: before ? point(before) : undefined, after: after ? point(after) : undefined };
 };
+
+export const fetchPoints = async (sensor: number, metric: string, from: number, to: number, bucket: Bucketing) => (await fetchSeries(sensor, metric, from, to, bucket)).points;
 
 export const rangeOf = (points: Point[]) => (points.length ? { min: Math.min(...points.map((point) => point.min)), max: Math.max(...points.map((point) => point.max)) } : null);
 
@@ -29,7 +38,7 @@ const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0)
 
 // Several sensors' points as one line: per time, the average of the sensors that have a value then.
 // Single readings of different sensors rarely share a time, so those are averaged per quarter of an hour.
-export const averagePoints = (lists: Point[][]): Point[] => {
+const averagePoints = (lists: Point[][]): Point[] => {
   if (lists.length === 1) {
     return lists[0];
   }
@@ -44,4 +53,10 @@ export const averagePoints = (lists: Point[][]): Point[] => {
   return [...times]
     .sort(([a], [b]) => a - b)
     .map(([time, points]) => ({ time, min: mean(points.map((point) => point.min)), max: mean(points.map((point) => point.max)), avg: mean(points.map((point) => point.avg)) }));
+};
+
+// The same for whole series. On each side, the sensors' nearest points closest to the range.
+export const averageSeries = (list: Series[]): Series => {
+  const side = (points: (Point | undefined)[]) => averagePoints(points.flatMap((point) => (point ? [[point]] : [])));
+  return { points: averagePoints(list.map((series) => series.points)), before: side(list.map((series) => series.before)).at(-1), after: side(list.map((series) => series.after))[0] };
 };

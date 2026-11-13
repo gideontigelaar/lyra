@@ -53,10 +53,15 @@ export interface Option {
 
 export type Bucketing = 'raw' | 'hour' | 'day' | 'week' | 'month';
 
+export type Reading = { time: string; value: number } | { time: string; avg: number; min: number; max: number };
+
 export interface ReadingsResponse {
   unit: string;
   bucket: Bucketing;
-  readings: ({ time: string; value: number } | { time: string; avg: number; min: number; max: number })[];
+  readings: Reading[];
+  // The nearest reading or bucket on each side of the range, if there's one within as long again.
+  before: Reading | null;
+  after: Reading | null;
 }
 
 export interface Point {

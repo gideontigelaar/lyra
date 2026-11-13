@@ -55,28 +55,37 @@ export default function RangeChart({ id, points, before, after, start, end, slot
   const plotWidth = Math.max(width - RIGHT, 1);
   const plotHeight = HEIGHT - TOP - BOTTOM;
   const x = (time: number) => ((time - start) / (end - start)) * plotWidth;
-  const y = points.length ? scale([...points, ...(before ? [before] : []), ...(after ? [after] : [])]) : { min: 0, max: 1, ticks: [], step: 1 };
+  // With slots, each point is a bucket of readings, like an hour, and sits in the middle of its slot.
+  const slot = slots.length ? (slots[1] ?? end) - slots[0] : 0;
+
+  // The nearest readings outside the window carry the line on to its edges, or across it when it has none of its own.
+  // They can be far away, so the scale only takes the values where the line crosses the edges.
+  const all = [...(before ? [before] : []), ...points, ...(after ? [after] : [])];
+  const drawn = points.length > 0 || (before !== undefined && after !== undefined);
+  const cross = (a: Point, b: Point, time: number): Point => {
+    const share = (time - a.time - slot / 2) / (b.time - a.time);
+    const mix = (key: 'min' | 'max' | 'avg') => a[key] + (b[key] - a[key]) * share;
+    return { time, min: mix('min'), max: mix('max'), avg: mix('avg') };
+  };
+  const [first, last] = [points[0] ?? after, points.at(-1) ?? before];
+  const seen = [...(before && first ? [cross(before, first, start)] : []), ...points, ...(after && last ? [cross(last, after, end)] : [])];
+  const y = drawn ? scale(seen) : { min: 0, max: 1, ticks: [], step: 1 };
   const yPos = (value: number) => TOP + plotHeight - ((value - y.min) / (y.max - y.min)) * plotHeight;
   const labelDecimals = y.step < 1 ? Math.min(decimals, Math.ceil(-Math.log10(y.step))) : 0;
 
-  const slotIndex = points.map((point) => slots.findIndex((slot, i) => point.time >= slot && point.time < (slots[i + 1] ?? end)));
+  const slotIndex = points.map((point) => slots.findIndex((from, i) => point.time >= from && point.time < (slots[i + 1] ?? end)));
   const centers = points.map((point, i) => (slots.length ? (x(slots[slotIndex[i]] ?? point.time) + x(slots[slotIndex[i] + 1] ?? end)) / 2 : x(point.time)));
-  // The readings just outside the window carry the line on to the edges, so it doesn't stop as if nothing came before or after.
-  const all = [...(before ? [before] : []), ...points, ...(after ? [after] : [])];
+  const allCenters = [...(before ? [x(before.time + slot / 2)] : []), ...centers, ...(after ? [x(after.time + slot / 2)] : [])];
   const shift = before ? 1 : 0;
-  const allCenters = [
-    ...(before ? [slots.length ? x(start) - (x(slots[1] ?? end) - x(start)) / 2 : x(before.time)] : []),
-    ...centers,
-    ...(after ? [slots.length ? x(end) + (x(end) - x(slots.at(-1) ?? start)) / 2 : x(after.time)] : []),
-  ];
-  const allSlots = [...(before ? [-1] : []), ...slotIndex, ...(after ? [slots.length] : [])];
-  const gaps = all.slice(1).map((point, i) => point.time - all[i].time);
+
+  // The line joins neighbouring slots, or single readings no further apart than usual. Across a longer gap it's dashed.
+  const gaps = points.slice(1).map((point, i) => point.time - points[i].time);
   const spacing = [...gaps].sort((a, b) => a - b)[Math.floor(gaps.length / 2)] ?? 0;
+  const joined = (a: Point, b: Point) => b.time - a.time <= (slots.length ? slot * 1.5 : spacing * 2.5);
   const segments: number[][] = [];
 
-  all.forEach((_, i) => {
-    const joined = i > 0 && (slots.length ? allSlots[i] - allSlots[i - 1] === 1 : gaps[i - 1] <= spacing * 2.5);
-    if (joined) {
+  all.forEach((point, i) => {
+    if (i > 0 && joined(all[i - 1], point)) {
       segments.at(-1)!.push(i);
     } else {
       segments.push([i]);
@@ -204,15 +213,31 @@ export default function RangeChart({ id, points, before, after, start, end, slot
           <clipPath id={clip}>
             <rect x={0} y={0} width={plotWidth} height={HEIGHT} />
           </clipPath>
-          <g key={id} className="transition-opacity duration-300 ease-out starting:opacity-0">
+          <g key={id} clipPath={`url(#${clip})`} className="transition-opacity duration-300 ease-out starting:opacity-0">
             {segments.map((indexes) => (
-              <g key={all[indexes[0]].time} clipPath={`url(#${clip})`}>
+              <g key={all[indexes[0]].time}>
                 <path d={`${path(indexes, (point) => point.max)}${path([...indexes].reverse(), (point) => point.min).replace('M', 'L')}Z`} style={{ fill: paint, fillOpacity: 0.16 }} />
                 <path d={path(indexes, (point) => point.avg)} fill="none" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ stroke: paint }} />
                 {(indexes.length === 1 || !slots.length) &&
                   indexes.filter(inside).map((i) => <circle key={i} cx={allCenters[i]} cy={yPos(all[i].avg)} r={indexes.length === 1 ? 4 : 2.5} style={{ fill: paint }} />)}
               </g>
             ))}
+            {segments.slice(1).map((indexes, i) => {
+              const [from, to] = [segments[i].at(-1)!, indexes[0]];
+              return (
+                <line
+                  key={all[to].time}
+                  x1={allCenters[from]}
+                  y1={yPos(all[from].avg)}
+                  x2={allCenters[to]}
+                  y2={yPos(all[to].avg)}
+                  strokeWidth={1.5}
+                  strokeDasharray="4 5"
+                  strokeLinecap="round"
+                  style={{ stroke: paint }}
+                />
+              );
+            })}
           </g>
           {selected !== null && centers[selected] !== undefined && (
             <>
@@ -227,7 +252,7 @@ export default function RangeChart({ id, points, before, after, start, end, slot
               />
             </>
           )}
-          {!points.length && (
+          {!drawn && (
             <text x={plotWidth / 2} y={TOP + plotHeight / 2} textAnchor="middle" className="fill-muted text-subheadline font-semibold">
               No Data
             </text>

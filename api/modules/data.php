@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 const BUCKET_SECONDS = 900;
 const BUCKET_MAX_DAYS = ['raw' => 31, 'hour' => 31, 'day' => 400, 'week' => 1100, 'month' => 3700];
+// The longest a bucket can be, with an hour for a change to or from summer time.
+const BUCKET_LONGEST = ['raw' => 0, 'hour' => 3600, 'day' => 90000, 'week' => 608400, 'month' => 2682000];
 const MAX_RANGES = 1000;
 const IMPORT_ROWS = 5000;
 const IMPORT_BODY_BYTES = 1048576;
@@ -72,6 +74,17 @@ function list_readings(): never
         respond(400, ['error' => 'unknown time zone']);
     }
 
+    respond(200, [
+        'unit' => $row['unit'],
+        'bucket' => $bucket,
+        'readings' => read_buckets($db, $row, $bucket, $zone, $start, $end),
+        'before' => edge_bucket($db, $row, $bucket, $zone, $start, true),
+        'after' => edge_bucket($db, $row, $bucket, $zone, $end, false),
+    ]);
+}
+
+function read_buckets(PDO $db, array $row, string $bucket, DateTimeZone $zone, int $start, int $end): array
+{
     $readings = [];
 
     if ($bucket === 'raw') {
@@ -86,7 +99,7 @@ function list_readings(): never
             $readings[] = ['time' => iso_time($reading['measured_at']), 'value' => $reading['value']];
         }
 
-        respond(200, ['unit' => $row['unit'], 'bucket' => $bucket, 'readings' => $readings]);
+        return $readings;
     }
 
     $stmt = $db->prepare(
@@ -125,7 +138,29 @@ function list_readings(): never
         ];
     }
 
-    respond(200, ['unit' => $row['unit'], 'bucket' => $bucket, 'readings' => $readings]);
+    return $readings;
+}
+
+// The bucket of the nearest reading before or after a time, however far away. A chart's line carries on to it, across any gap.
+function edge_bucket(PDO $db, array $row, string $bucket, DateTimeZone $zone, int $time, bool $before): ?array
+{
+    $stmt = $db->prepare(
+        'SELECT UNIX_TIMESTAMP(' . ($before ? 'MAX' : 'MIN') . '(measured_at)) FROM readings
+         WHERE sensor_id = ? AND metric_id = ? AND measured_at ' . ($before ? '<' : '>=') . ' FROM_UNIXTIME(?)'
+    );
+    $stmt->execute([$row['sensor_id'], $row['metric_id'], $time]);
+    $nearest = $stmt->fetchColumn();
+
+    if ($nearest === null) {
+        return null;
+    }
+
+    // Nothing lies between that reading and the time, so its bucket is the last or first one in this stretch.
+    $buckets = $before
+        ? read_buckets($db, $row, $bucket, $zone, (int) $nearest - BUCKET_LONGEST[$bucket], $time)
+        : read_buckets($db, $row, $bucket, $zone, $time, (int) $nearest + BUCKET_LONGEST[$bucket] + 1);
+
+    return $before ? end($buckets) : $buckets[0];
 }
 
 function delete_readings(): never

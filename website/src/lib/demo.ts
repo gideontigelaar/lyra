@@ -302,20 +302,11 @@ const sensorJson = (sensor: DemoSensor) => ({
   }),
 });
 
-const listReadings: Handler = ({ query }) => {
-  const sensor = findSensor(query.get('sensor'));
-  const item = sensor?.metrics.find((entry) => entry.name === query.get('metric'));
-
-  if (!sensor || !item) {
-    throw new ApiError(400, 'unknown sensor or metric');
-  }
-
-  const bucket = query.get('bucket') ?? 'raw';
-  const zone = query.get('tz') ?? 'UTC';
-  const list = readings(sensor, item, Date.parse(query.get('from')!), Date.parse(query.get('to')!));
+const bucketed = (sensor: DemoSensor, item: DemoMetric, bucket: string, zone: string, from: number, to: number) => {
+  const list = readings(sensor, item, from, to);
 
   if (bucket === 'raw') {
-    return { unit: units[item.name], bucket, readings: list.map((reading) => ({ time: iso(reading.time), value: reading.value })) };
+    return list.map((reading) => ({ time: iso(reading.time), value: reading.value }));
   }
 
   const buckets = new Map<number, { total: number; count: number; min: number; max: number }>();
@@ -330,7 +321,42 @@ const listReadings: Handler = ({ query }) => {
     buckets.set(start, entry);
   }
 
-  return { unit: units[item.name], bucket, readings: [...buckets].map(([time, entry]) => ({ time: iso(time), avg: +(entry.total / entry.count).toFixed(3), min: entry.min, max: entry.max })) };
+  return [...buckets].map(([time, entry]) => ({ time: iso(time), avg: +(entry.total / entry.count).toFixed(3), min: entry.min, max: entry.max }));
+};
+
+// The bucket of the nearest reading before or after a time, however far away, looking further each round like an index would.
+const edge = (sensor: DemoSensor, item: DemoMetric, bucket: string, zone: string, time: number, before: boolean) => {
+  for (let reach = DAY; reach < 2 * (sensor.since + 1) * DAY; reach *= 4) {
+    const list = before ? bucketed(sensor, item, bucket, zone, time - reach, time) : bucketed(sensor, item, bucket, zone, time, time + reach);
+
+    if (list.length) {
+      return before ? list.at(-1) : list[0];
+    }
+  }
+
+  return null;
+};
+
+// Like the API, with the nearest bucket on each side.
+const listReadings: Handler = ({ query }) => {
+  const sensor = findSensor(query.get('sensor'));
+  const item = sensor?.metrics.find((entry) => entry.name === query.get('metric'));
+
+  if (!sensor || !item) {
+    throw new ApiError(400, 'unknown sensor or metric');
+  }
+
+  const bucket = query.get('bucket') ?? 'raw';
+  const zone = query.get('tz') ?? 'UTC';
+  const [from, to] = [Date.parse(query.get('from')!), Date.parse(query.get('to')!)];
+
+  return {
+    unit: units[item.name],
+    bucket,
+    readings: bucketed(sensor, item, bucket, zone, from, to),
+    before: edge(sensor, item, bucket, zone, from, true),
+    after: edge(sensor, item, bucket, zone, to, false),
+  };
 };
 
 const deleteReadings: Handler = ({ body }) => {
