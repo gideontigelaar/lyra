@@ -119,24 +119,16 @@ bool Relay::online() const {
     return _api.isConnected() && !_send_failed;
 }
 
-// While the API can be reached, a sensor is relayed as often as it says. While it can't, each kind of broadcast is kept
-// once per offline interval, the sensor's shortest recording interval, so flash holds days of them and none of its values go missing.
+// Each kind of broadcast is kept on its own, so a sensor that spreads its values over broadcasts, like pvvx, never has one
+// wait for another. While the API can be reached, that's as often as the sensor says. While it can't, it's once per offline
+// interval, the sensor's shortest recording interval, so flash holds days of them and none of its values go missing.
 bool Relay::keep(Sensor& sensor, const Advert& advert) {
-    if (online()) {
-        if (sensor.relayed && advert.received_ms - sensor.last_relay_ms < sensor.interval_ms) {
-            return false;
-        }
-
-        sensor.relayed = true;
-        sensor.last_relay_ms = advert.received_ms;
-        return true;
-    }
-
+    uint32_t interval = online() ? sensor.interval_ms : sensor.offline_interval_ms;
     uint32_t signature = kindOf(advert);
     auto kind = std::find_if(sensor.kinds.begin(), sensor.kinds.end(), [signature](const Kind& item) { return item.signature == signature; });
 
     if (kind != sensor.kinds.end()) {
-        if (advert.received_ms - kind->last_ms < sensor.offline_interval_ms) {
+        if (advert.received_ms - kind->last_ms < interval) {
             return false;
         }
     } else if (sensor.kinds.size() < Config::MAX_KINDS) {
@@ -229,8 +221,6 @@ void Relay::refreshSensors() {
         const Sensor* known = findSensor(sensor.address.c_str());
 
         if (known != nullptr) {
-            sensor.relayed = known->relayed;
-            sensor.last_relay_ms = known->last_relay_ms;
             sensor.kinds = known->kinds;
         }
 
@@ -260,7 +250,6 @@ void Relay::send(uint32_t now_ms) {
 
     time_t now = time(nullptr);
     bool from_store = _store.count() > 0;
-    AdvertStore::Record records[Config::Network::MAX_BATCH];
     size_t count = 0;
     JsonDocument doc;
     JsonArray adverts = doc["adverts"].to<JsonArray>();
@@ -271,10 +260,10 @@ void Relay::send(uint32_t now_ms) {
             return;
         }
 
-        count = _store.peek(records, Config::Network::MAX_BATCH);
+        count = _store.peek(_batch, Config::Network::MAX_BATCH);
         size_t expired = 0;
 
-        while (expired < count && now - records[expired].received_at >= Config::Store::MAX_AGE_S - 60) {
+        while (expired < count && now - _batch[expired].received_at >= Config::Store::MAX_AGE_S - 60) {
             expired++;
         }
 
@@ -292,8 +281,8 @@ void Relay::send(uint32_t now_ms) {
         }
 
         for (size_t i = 0; i < count; i++) {
-            uint32_t age = now > records[i].received_at ? now - records[i].received_at : 0;
-            addAdvert(adverts, records[i].address, records[i].data, records[i].length, records[i].rssi, age);
+            uint32_t age = now > _batch[i].received_at ? now - _batch[i].received_at : 0;
+            addAdvert(adverts, _batch[i].address, _batch[i].data, _batch[i].length, _batch[i].rssi, age);
         }
     } else {
         count = std::min(_pending.size(), Config::Network::MAX_BATCH);

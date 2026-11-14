@@ -33,12 +33,14 @@ const niceStep = (span: number) => {
   return ([1, 2, 5, 10].find((step) => step * magnitude >= span) ?? 10) * magnitude;
 };
 
-const scale = (points: Point[]) => {
+// Steps are never finer than the value's decimals, so labels don't repeat, like 75 and 75 for a battery. A flat line sits in the middle, not on the bottom edge.
+const scale = (points: Point[], decimals: number) => {
   const low = Math.min(...points.map((point) => point.min));
   const high = Math.max(...points.map((point) => point.max));
-  const step = niceStep(Math.max(high - low, Math.abs(high) * 0.02, 1e-6) / 3);
-  const min = Math.floor(low / step) * step;
-  const max = Math.max(Math.ceil(high / step) * step, min + step);
+  const step = Math.max(niceStep(Math.max(high - low, Math.abs(high) * 0.02, 1e-6) / 3), 10 ** -decimals);
+  const pad = high === low ? step : 0;
+  const min = Math.floor(low / step) * step - pad;
+  const max = Math.max(Math.ceil(high / step) * step, min + step) + pad;
   return { min, max, ticks: Array.from({ length: Math.round((max - min) / step) + 1 }, (_, i) => min + i * step), step };
 };
 
@@ -69,7 +71,7 @@ export default function RangeChart({ id, points, before, after, start, end, slot
   };
   const [first, last] = [points[0] ?? after, points.at(-1) ?? before];
   const seen = [...(before && first ? [cross(before, first, start)] : []), ...points, ...(after && last ? [cross(last, after, end)] : [])];
-  const y = drawn ? scale(seen) : { min: 0, max: 1, ticks: [], step: 1 };
+  const y = drawn ? scale(seen, decimals) : { min: 0, max: 1, ticks: [], step: 1 };
   const yPos = (value: number) => TOP + plotHeight - ((value - y.min) / (y.max - y.min)) * plotHeight;
   const labelDecimals = y.step < 1 ? Math.min(decimals, Math.ceil(-Math.log10(y.step))) : 0;
 
@@ -95,8 +97,10 @@ export default function RangeChart({ id, points, before, after, start, end, slot
   const path = (indexes: number[], value: (point: Point) => number) => curve(indexes.map((i) => [allCenters[i], yPos(value(all[i]))]));
   const inside = (i: number) => i >= shift && i < shift + points.length;
   const clip = useId();
-  const edge = low ? Math.min(Math.max((yPos(low.below) - TOP) / plotHeight, 0), 1) : 0;
-  const paint = low ? `url(#${clip}-low)` : color;
+  // The colour changes half a unit above the low mark, so a line right on it is all low. Outside the chart the line keeps one colour.
+  const mark = low ? low.below + 10 ** -decimals / 2 : 0;
+  const edge = Math.min(Math.max((yPos(mark) - TOP) / plotHeight, 0), 1);
+  const paint = !low || mark <= y.min ? color : mark >= y.max ? low.color : `url(#${clip}-low)`;
 
   const plot = useRef<SVGRectElement>(null);
 

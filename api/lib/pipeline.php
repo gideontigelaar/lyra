@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 const DECODERS = ['bthome'];
 const SINKS = ['lyra'];
-// How often a source relays each of its sensors. Some sensors spread their values over broadcasts of their own, like pvvx
-// sends temperature and humidity in one and the battery in another, so a source relays often enough to catch each in time.
+// How often a source relays each kind of broadcast from a sensor. Some sensors spread their values over broadcasts of their
+// own, like pvvx sends temperature and humidity in one and the battery in another, so each arrives in time.
 const RELAY_SECONDS = 60;
 // A sensor with every value turned off is still relayed now and then, so a value that's new to it shows up.
 const IDLE_RELAY_SECONDS = 900;
